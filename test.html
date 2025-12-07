@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArchiView 3D Test</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        // 极简React组件
+        const App = () => {
+            return React.createElement('div', {
+                className: 'w-full h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col items-center justify-center'
+            }, [
+                React.createElement('h1', {
+                    className: 'text-4xl font-bold text-blue-600 mb-8'
+                }, 'ArchiView 3D'),
+                React.createElement('div', {
+                    className: 'p-8 bg-white rounded-xl shadow-lg border border-blue-200'
+                }, [
+                    React.createElement('p', {
+                        className: 'text-lg text-gray-700 mb-4'
+                    }, '测试页面：基本React组件正常显示'),
+                    React.createElement('div', {
+                        className: 'w-64 h-64 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold'
+                    }, '3D场景区域')
+                ])
+            ]);
+        };
+
+        // 渲染组件
+        ReactDOM.render(React.createElement(App), document.getElementById('root'));
+    </script>
+</body>
+</html>

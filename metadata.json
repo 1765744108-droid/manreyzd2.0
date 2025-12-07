@@ -1,0 +1,5 @@
+{
+  "name": "ArchiView 3D",
+  "description": "A mobile-first, interactive 3D architectural model viewer with dual-model control, X-ray overlap visualization, and intuitive touch gestures.",
+  "requestFramePermissions": []
+}
