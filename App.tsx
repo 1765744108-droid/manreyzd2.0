@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { Controls } from './components/Controls.tsx';
-import { Scene } from './components/Scene.tsx';
-import PerformanceMonitor from './components/PerformanceMonitor.tsx';
+import { Controls } from './components/Controls';
+import { Scene } from './components/Scene';
+import PerformanceMonitor from './components/PerformanceMonitor';
 import { ModelData } from './types';
 import { DEFAULT_MODEL_1_URL, DEFAULT_MODEL_2_URL } from './constants';
 import { Upload, Info } from 'lucide-react';

@@ -39,6 +39,19 @@ const ControlPanel: React.FC<{
     onUpdate(model.id, { visible: !model.visible });
   };
 
+  const adjustHeight = (direction: 'up' | 'down') => {
+    const step = 0.5; // Adjust this value to control height change per click
+    const currentPos = [...model.position];
+    
+    if (direction === 'up') {
+      currentPos[1] += step;
+    } else {
+      currentPos[1] -= step;
+    }
+    
+    onUpdate(model.id, { position: [currentPos[0], currentPos[1], currentPos[2]] });
+  };
+
   return (
     <div className={`p-4 rounded-xl backdrop-blur-md transition-all duration-300 border ${isActive ? 'bg-white/90 border-blue-400 shadow-lg scale-105' : 'bg-white/60 border-gray-200'}`}>
       <div className="flex items-center justify-between mb-3">
@@ -55,7 +68,7 @@ const ControlPanel: React.FC<{
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 mb-2">
         <button 
           onClick={() => rotateModel('x')}
           className="flex flex-col items-center justify-center p-2 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-lg active:scale-95 transition-all"
@@ -76,6 +89,23 @@ const ControlPanel: React.FC<{
         >
           <RotateCw size={16} className="mb-1 text-green-600" />
           <span className="text-xs text-green-600">顺时针旋转</span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button 
+          onClick={() => adjustHeight('up')}
+          className="flex flex-col items-center justify-center p-2 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-lg active:scale-95 transition-all"
+        >
+          <span className="text-sm font-bold text-purple-600">↑</span>
+          <span className="text-xs text-gray-600">升高</span>
+        </button>
+        <button 
+          onClick={() => adjustHeight('down')}
+          className="flex flex-col items-center justify-center p-2 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-lg active:scale-95 transition-all"
+        >
+          <span className="text-sm font-bold text-purple-600">↓</span>
+          <span className="text-xs text-gray-600">降低</span>
         </button>
       </div>
     </div>

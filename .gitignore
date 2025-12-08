@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# WeChat Mini Program config files
+project.config.json
+project.private.config.json

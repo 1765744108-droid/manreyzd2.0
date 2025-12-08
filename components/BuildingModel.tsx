@@ -213,8 +213,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           // Mapping: Screen X -> World X, Screen Y -> World Z
           const moveSpeed = 0.05; // Increased sensitivity for better dragging
           
-          const newX = memo.initialPos[0] + (x * moveSpeed);
-          const newZ = memo.initialPos[2] + (y * moveSpeed); // Screen Y maps to World Z
+          const newX = memo.initialPos[0] - (x * moveSpeed);
+          const newZ = memo.initialPos[2] - (y * moveSpeed); // Screen Y maps to World Z
 
           // Keep Y position fixed to stay on ground
           onUpdate(data.id, { position: [newX, memo.initialPos[1], newZ] });
@@ -225,8 +225,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           // Mapping: Screen X -> World X, Screen Y -> World Y
           const moveSpeed = 0.05; // Increased sensitivity for better dragging
           
-          const newX = memo.initialPos[0] + (x * moveSpeed);
-          const newY = memo.initialPos[1] - (y * moveSpeed); // Invert Y for intuitive movement
+          const newX = memo.initialPos[0] - (x * moveSpeed);
+          const newY = memo.initialPos[1] + (y * moveSpeed); // Positive Y for intuitive movement
           const newZ = memo.initialPos[2];
 
           // Allow free movement in 3D space
