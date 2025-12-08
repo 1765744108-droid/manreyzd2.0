@@ -15,7 +15,7 @@ const ControlPanel: React.FC<{
 }> = ({ model, onUpdate, isActive }) => {
   
   const rotateModel = (axis: 'x' | 'z') => {
-    const rad = Math.PI; // 180 degrees
+    const rad = Math.PI / 2; // 90 degrees
     const currentRot = [...model.rotation];
     
     if (axis === 'x') {
@@ -61,14 +61,14 @@ const ControlPanel: React.FC<{
           className="flex flex-col items-center justify-center p-2 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-lg active:scale-95 transition-all"
         >
           <RotateCw size={16} className="mb-1 text-gray-600" />
-          <span className="text-xs text-gray-600">X轴翻转</span>
+          <span className="text-xs text-gray-600">X轴旋转90°</span>
         </button>
         <button 
           onClick={() => rotateModel('z')}
           className="flex flex-col items-center justify-center p-2 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-lg active:scale-95 transition-all"
         >
           <RotateCw size={16} className="mb-1 text-gray-600" />
-          <span className="text-xs text-gray-600">Z轴翻转</span>
+          <span className="text-xs text-gray-600">Z轴旋转90°</span>
         </button>
         <button 
           onClick={rotateClockwise}
