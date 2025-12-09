@@ -46,7 +46,8 @@ const ControlPanel: React.FC<{
     if (direction === 'up') {
       currentPos[1] += step;
     } else {
-      currentPos[1] -= step;
+      // Prevent model from going below ground (Y >= 0)
+      currentPos[1] = Math.max(0, currentPos[1] - step);
     }
     
     onUpdate(model.id, { position: [currentPos[0], currentPos[1], currentPos[2]] });

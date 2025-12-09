@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, Environment, ContactShadows } from '@react-three/drei';
+import { OrbitControls, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import BuildingModel from './BuildingModel.tsx';
 import PerformanceMonitor from './PerformanceMonitor.tsx';
@@ -24,37 +24,43 @@ interface SceneProps {
 const Ground = ({ onDeselect }: { onDeselect: () => void }) => {
   return (
     <mesh 
-      rotation={[-Math.PI / 2, 0, 0]} 
-      position={[0, -0.01, 0]} 
-      receiveShadow
-      onPointerMissed={(e) => {
-        if (e.type === 'click') onDeselect();
-      }}
-      onClick={(e) => {
-          e.stopPropagation();
-          onDeselect();
-      }}
-      visible={false} // Hide ground completely but keep interaction
-    >
-      <planeGeometry args={[100, 100]} />
+        rotation={[-Math.PI / 2, 0, 0]} 
+        position={[0, -0.01, 0]} 
+        receiveShadow
+        onPointerMissed={(e) => {
+          if (e.type === 'click') onDeselect();
+        }}
+        onClick={(e) => {
+            e.stopPropagation();
+            onDeselect();
+        }}
+        visible={false} // Hide ground completely but keep interaction
+      >
+        <planeGeometry args={[8, 8]} />
       <meshStandardMaterial color={COLORS.ground} transparent opacity={0} side={THREE.DoubleSide} />
     </mesh>
   );
 };
 
-// Component to auto-center camera on load
+// Component to auto-fit camera to models and 12x12 grid space
 const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
     const { camera, controls } = useThree();
     const isFirstRun = useRef(true);
 
     useEffect(() => {
         if (isFirstRun.current && models.length > 0) {
-            // Look at the center of the scene, slightly above ground level for better view
-            camera.lookAt(0, 1, 0);
+            // Set camera to view 8x8 grid space with models centered
+            // Adjusted camera position to fit 8x8 grid
+            camera.position.set(3.8, 7.2, 3.8);
+            camera.lookAt(0, 0.5, 0);
+            
             if (controls) {
                 // @ts-ignore
-                controls.target.set(0, 1, 0);
+                controls.target.set(0, 0.5, 0);
+                // @ts-ignore
+                controls.update();
             }
+            
             isFirstRun.current = false;
         }
     }, [models, camera, controls]);
@@ -118,19 +124,17 @@ const SceneContent: React.FC<SceneProps> = ({ models, onSelectModel, onUpdateMod
 
   return (
     <>
-      <ambientLight intensity={0.7} />
+      <ambientLight intensity={1.0} />
       <directionalLight 
         position={[10, 20, 10]} 
         intensity={1.5} 
         castShadow 
         shadow-mapSize={[2048, 2048]}
       />
-      
-      <Environment preset="city" />
 
       {/* Enhanced grid with better visibility */}
       <gridHelper 
-        args={[100, 100, COLORS.grid, COLORS.grid]} 
+        args={[8, 8, COLORS.grid, COLORS.grid]} 
         position={[0, 0.01, 0]} 
         scale={1}
       >

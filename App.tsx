@@ -11,7 +11,7 @@ const INITIAL_MODELS: ModelData[] = [
     id: 'model-1',
     name: '模型一',
     url: DEFAULT_MODEL_1_URL,
-    position: [-3.333, 1, 0],
+    position: [-1.5, 0, 0],
     rotation: [0, 0, 0], // 初始朝上显示
     scale: [10, 10, 10],
     visible: true,
@@ -22,7 +22,7 @@ const INITIAL_MODELS: ModelData[] = [
     id: 'model-2',
     name: '模型二',
     url: DEFAULT_MODEL_2_URL,
-    position: [3.333, 1, 0],
+    position: [1.5, 0, 0],
     rotation: [0, 0, 0], // 初始朝上显示
     scale: [10, 10, 10], 
     visible: true,
@@ -122,7 +122,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Footer / Status / Uploads */}
-        <div className="bg-white/90 backdrop-blur shadow-lg border-t border-gray-200 p-4 pb-8 sm:pb-4 pointer-events-auto transition-transform duration-300">
+        <div className="hidden bg-white/90 backdrop-blur shadow-lg border-t border-gray-200 p-4 pb-8 sm:pb-4 pointer-events-auto transition-transform duration-300">
           
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 max-w-4xl mx-auto">
             

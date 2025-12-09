@@ -123,13 +123,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     // Calculate model bounding box with proper scaling
     const box = new THREE.Box3().setFromObject(clone);
     const minY = box.min.y;
-    const maxY = box.max.y;
     
-    // Calculate vertical center point for proper rotation
-    const verticalCenterY = (minY + maxY) / 2;
-    
-    // Set model offset to center it vertically at origin
-    const offsetY = -verticalCenterY;
+    // Set model offset to make its bottom rest on ground (Y=0)
+    const offsetY = -minY;
     setModelOffset(new THREE.Vector3(0, offsetY, 0));
     
     // Update matrix world after positioning
@@ -154,6 +150,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
             mat.side = THREE.FrontSide;
             mat.depthTest = true;
             mat.blending = THREE.NormalBlending;
+            mat.color.set(0xffffff); // Set material color to white
             mat.needsUpdate = true;
           });
         }
@@ -183,6 +180,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           transparentMaterial.depthWrite = false; // Disable depth write to avoid occluding the main model
           transparentMaterial.side = THREE.BackSide; // Show only the back side (inside) of the model
           transparentMaterial.blending = THREE.AdditiveBlending; // Additive blending for better visibility
+          transparentMaterial.color.set(0xffffff); // Set material color to white
           
           // Apply the new material
           child.material = transparentMaterial;
@@ -208,28 +206,34 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         
         if (!data.selected) return memo;
 
+        // Ground boundaries (8x8 grid = -4 to 4 in X and Z)
+        const GRID_SIZE = 8;
+        const BOUNDARY_MIN = -GRID_SIZE / 2;
+        const BOUNDARY_MAX = GRID_SIZE / 2;
+        
         // 1 Finger = Move on ground (X, Z)
         if (touches === 1) {
           // Mapping: Screen X -> World X, Screen Y -> World Z
           const moveSpeed = 0.05; // Increased sensitivity for better dragging
           
-          const newX = memo.initialPos[0] + (x * moveSpeed);
-          const newZ = memo.initialPos[2] + (y * moveSpeed); // Screen Y maps to World Z
+          // Calculate new position with boundary constraints
+          const newX = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, memo.initialPos[0] + (x * moveSpeed)));
+          const newZ = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, memo.initialPos[2] + (y * moveSpeed))); // Screen Y maps to World Z (direct mapping for intuitive dragging)
 
           // Keep Y position fixed to stay on ground
           onUpdate(data.id, { position: [newX, memo.initialPos[1], newZ] });
-        }
-        
+        }        
         // 2 Fingers = Move in 3D space (X, Y, Z)
         if (touches === 2) {
           // Mapping: Screen X -> World X, Screen Y -> World Y
           const moveSpeed = 0.05; // Increased sensitivity for better dragging
           
-          const newX = memo.initialPos[0] + (x * moveSpeed);
+          // Calculate new position with X boundary constraints (Z stays fixed)
+          const newX = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, memo.initialPos[0] + (x * moveSpeed)));
           const newY = memo.initialPos[1] + (y * moveSpeed); // Positive Y for intuitive movement
           const newZ = memo.initialPos[2];
 
-          // Allow free movement in 3D space
+          // Allow free movement in Y but constrain X
           onUpdate(data.id, { position: [newX, newY, newZ] });
         }
         
