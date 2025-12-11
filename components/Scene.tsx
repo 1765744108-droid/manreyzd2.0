@@ -36,7 +36,7 @@ const Ground = ({ onDeselect }: { onDeselect: () => void }) => {
         }}
         visible={false} // Hide ground completely but keep interaction
       >
-        <planeGeometry args={[8, 8]} />
+        <planeGeometry args={[6, 6]} />
       <meshStandardMaterial color={COLORS.ground} transparent opacity={0} side={THREE.DoubleSide} />
     </mesh>
   );
@@ -49,9 +49,8 @@ const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
 
     useEffect(() => {
         if (isFirstRun.current && models.length > 0) {
-            // Set camera to view 8x8 grid space with models centered
-            // Adjusted camera position to fit 8x8 grid
-            camera.position.set(3.8, 7.2, 3.8);
+            // Set camera to front view with increased distance to see both models completely
+            camera.position.set(0, 8, 10);
             camera.lookAt(0, 0.5, 0);
             
             if (controls) {
@@ -134,7 +133,7 @@ const SceneContent: React.FC<SceneProps> = ({ models, onSelectModel, onUpdateMod
 
       {/* Enhanced grid with better visibility */}
       <gridHelper 
-        args={[8, 8, COLORS.grid, COLORS.grid]} 
+        args={[6, 6, COLORS.grid, COLORS.grid]} 
         position={[0, 0.01, 0]} 
         scale={1}
       >
@@ -176,7 +175,7 @@ export const Scene: React.FC<SceneProps> = (props) => {
     <Canvas
       shadows
       camera={{ position: INITIAL_CAMERA_POSITION, fov: 45 }}
-      style={{ background: COLORS.background }}
+      style={{ background: COLORS.background, touchAction: 'none' }}
       dpr={[1, 2]} 
     >
       <SceneContent {...props} />

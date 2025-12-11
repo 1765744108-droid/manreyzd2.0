@@ -9,7 +9,7 @@ import { Upload, Info } from 'lucide-react';
 const INITIAL_MODELS: ModelData[] = [
   {
     id: 'model-1',
-    name: '模型一',
+    name: '锚定',
     url: DEFAULT_MODEL_1_URL,
     position: [-1.5, 0, 0],
     rotation: [0, 0, 0], // 初始朝上显示
@@ -20,7 +20,7 @@ const INITIAL_MODELS: ModelData[] = [
   },
   {
     id: 'model-2',
-    name: '模型二',
+    name: '现实',
     url: DEFAULT_MODEL_2_URL,
     position: [1.5, 0, 0],
     rotation: [0, 0, 0], // 初始朝上显示

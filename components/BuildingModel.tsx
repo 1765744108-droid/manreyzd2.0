@@ -144,19 +144,28 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           
           materials.forEach((mat) => {
             // Base material properties for solid display
-            mat.transparent = false;
-            mat.opacity = 1.0;
+            mat.transparent = true;
+            mat.opacity = 0.7; // 70% opacity for both models
             mat.depthWrite = true;
             mat.side = THREE.FrontSide;
             mat.depthTest = true;
             mat.blending = THREE.NormalBlending;
-            mat.color.set(0xffffff); // Set material color to white
+            
+            // Set material color based on model name
+            if (data.name === '锚定') {
+              mat.color.set('#baccd9');
+            } else if (data.name === '现实') {
+              mat.color.set('#dfecd5');
+            } else {
+              mat.color.set(0xffffff); // Default to white if name doesn't match
+            }
+            
             mat.needsUpdate = true;
           });
         }
       }
     });
-  }, [clone]);
+  }, [clone, data.name]);
 
   // Create a clone for overlap visualization
   const overlapClone = useMemo(() => {
@@ -180,7 +189,15 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           transparentMaterial.depthWrite = false; // Disable depth write to avoid occluding the main model
           transparentMaterial.side = THREE.BackSide; // Show only the back side (inside) of the model
           transparentMaterial.blending = THREE.AdditiveBlending; // Additive blending for better visibility
-          transparentMaterial.color.set(0xffffff); // Set material color to white
+          
+          // Set material color based on model name
+          if (data.name === '锚定') {
+            transparentMaterial.color.set('#baccd9');
+          } else if (data.name === '现实') {
+            transparentMaterial.color.set('#dfecd5');
+          } else {
+            transparentMaterial.color.set(0xffffff); // Default to white if name doesn't match
+          }
           
           // Apply the new material
           child.material = transparentMaterial;
@@ -189,7 +206,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     });
     
     return clone;
-  }, [scene, overlapInfo.isOverlapping]);
+  }, [scene, overlapInfo.isOverlapping, data.name]);
 
   // Gesture Handling
   const bind = useGesture(
@@ -206,8 +223,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         
         if (!data.selected) return memo;
 
-        // Ground boundaries (8x8 grid = -4 to 4 in X and Z)
-        const GRID_SIZE = 8;
+        // Ground boundaries (6x6 grid = -3 to 3 in X and Z)
+        const GRID_SIZE = 6;
         const BOUNDARY_MIN = -GRID_SIZE / 2;
         const BOUNDARY_MAX = GRID_SIZE / 2;
         
