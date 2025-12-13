@@ -55,7 +55,7 @@ const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
             
             if (controls) {
                 // @ts-ignore
-                controls.target.set(0, 0, 0);
+                controls.target.set(0, 0.5, 0);
                 // @ts-ignore
                 controls.update();
             }
@@ -163,7 +163,6 @@ const SceneContent: React.FC<SceneProps> = ({ models, onSelectModel, onUpdateMod
         dampingFactor={0.05}
         enablePan={true}
         enableZoom={true}
-        target={[0, 0, 0]} // Set fixed target to keep ground stationary
       />
       
       <AutoFitCamera models={models} />
