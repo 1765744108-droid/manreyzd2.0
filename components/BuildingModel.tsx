@@ -144,14 +144,14 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           
           materials.forEach((mat) => {
             // Base material properties for solid display
-            if (data.name === '锚定') {
-              // Anchor model remains opaque
+            if (data.id === 'model-1') {
+              // Original anchor model properties (now named '现实')
               mat.transparent = false;
-              mat.opacity = 1.0; // 100% opacity for anchor model
-            } else if (data.name === '现实') {
-              // Reality model with 60% opacity
+              mat.opacity = 1.0; // 100% opacity for original anchor model
+            } else if (data.id === 'model-2') {
+              // Original reality model properties (now named '现实-2')
               mat.transparent = true;
-              mat.opacity = 0.6; // 60% opacity for reality model
+              mat.opacity = 0.6; // 60% opacity for original reality model
             } else {
               // Other models default to opaque
               mat.transparent = false;
@@ -162,11 +162,11 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
             mat.depthTest = true;
             mat.blending = THREE.NormalBlending;
             
-            // Set material color based on model name
-            if (data.name === '锚定') {
-              mat.color.set('#1781b5');
-            } else if (data.name === '现实') {
-              mat.color.set('#ee3f4d');
+            // Set material color based on model ID to maintain original colors
+            if (data.id === 'model-1') {
+              mat.color.set('#1781b5'); // Original anchor model color
+            } else if (data.id === 'model-2') {
+              mat.color.set('#ee3f4d'); // Original reality model color
             } else {
               mat.color.set(0xffffff); // Default to white if name doesn't match
             }
@@ -201,11 +201,11 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           transparentMaterial.side = THREE.BackSide; // Show only the back side (inside) of the model
           transparentMaterial.blending = THREE.AdditiveBlending; // Additive blending for better visibility
           
-          // Set material color based on model name
-          if (data.name === '锚定') {
-            transparentMaterial.color.set('#1781b5');
-          } else if (data.name === '现实') {
-            transparentMaterial.color.set('#ee3f4d');
+          // Set material color based on model ID to maintain original colors
+          if (data.id === 'model-1') {
+            transparentMaterial.color.set('#1781b5'); // Original anchor model color
+          } else if (data.id === 'model-2') {
+            transparentMaterial.color.set('#ee3f4d'); // Original reality model color
           } else {
             transparentMaterial.color.set(0xffffff); // Default to white if name doesn't match
           }
@@ -217,7 +217,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     });
     
     return clone;
-  }, [scene, overlapInfo.isOverlapping, data.name]);
+  }, [scene, overlapInfo.isOverlapping, data.id]);
 
   // Gesture Handling
   const bind = useGesture(
