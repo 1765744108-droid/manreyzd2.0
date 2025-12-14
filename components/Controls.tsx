@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Eye, EyeOff, RotateCw, Box } from 'lucide-react';
 import { ModelData } from '../types';
 
@@ -13,6 +13,11 @@ const ControlPanel: React.FC<{
   onUpdate: (id: string, updates: Partial<ModelData>) => void;
   isActive: boolean;
 }> = ({ model, onUpdate, isActive }) => {
+  // 长按相关状态
+  const [isLongPressing, setIsLongPressing] = useState(false);
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [intervalTimer, setIntervalTimer] = useState<NodeJS.Timeout | null>(null);
+  const [longPressDirection, setLongPressDirection] = useState<'up' | 'down' | null>(null);
   
   const rotateModel = (axis: 'x' | 'z') => {
     const rad = Math.PI / 2; // 90 degrees
@@ -51,6 +56,43 @@ const ControlPanel: React.FC<{
     }
     
     onUpdate(model.id, { position: [currentPos[0], currentPos[1], currentPos[2]] });
+  };
+
+  // 长按开始处理函数
+  const startLongPress = (direction: 'up' | 'down') => () => {
+    // 清除现有的计时器
+    if (longPressTimer) clearTimeout(longPressTimer);
+    if (intervalTimer) clearInterval(intervalTimer);
+    
+    // 设置长按方向
+    setLongPressDirection(direction);
+    
+    // 防抖动延迟300ms开始长按检测
+    const timer = setTimeout(() => {
+      setIsLongPressing(true);
+      
+      // 每150ms执行一次高度调整，确保操作流畅且不过度消耗资源
+      const interval = setInterval(() => {
+        adjustHeight(direction);
+      }, 150);
+      
+      setIntervalTimer(interval);
+    }, 300);
+    
+    setLongPressTimer(timer);
+  };
+
+  // 长按停止处理函数
+  const stopLongPress = () => {
+    // 清除所有计时器
+    if (longPressTimer) clearTimeout(longPressTimer);
+    if (intervalTimer) clearInterval(intervalTimer);
+    
+    // 重置状态
+    setIsLongPressing(false);
+    setLongPressTimer(null);
+    setIntervalTimer(null);
+    setLongPressDirection(null);
   };
 
   return (
@@ -96,6 +138,11 @@ const ControlPanel: React.FC<{
       <div className="grid grid-cols-2 gap-1">
         <button 
           onClick={() => adjustHeight('up')}
+          onMouseDown={startLongPress('up')}
+          onMouseUp={stopLongPress}
+          onMouseLeave={stopLongPress}
+          onTouchStart={startLongPress('up')}
+          onTouchEnd={stopLongPress}
           className="flex flex-col items-center justify-center p-1 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-md active:scale-95 transition-all"
         >
           <span className="text-sm font-bold text-purple-600">↑</span>
@@ -103,6 +150,11 @@ const ControlPanel: React.FC<{
         </button>
         <button 
           onClick={() => adjustHeight('down')}
+          onMouseDown={startLongPress('down')}
+          onMouseUp={stopLongPress}
+          onMouseLeave={stopLongPress}
+          onTouchStart={startLongPress('down')}
+          onTouchEnd={stopLongPress}
           className="flex flex-col items-center justify-center p-1 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-md active:scale-95 transition-all"
         >
           <span className="text-sm font-bold text-purple-600">↓</span>

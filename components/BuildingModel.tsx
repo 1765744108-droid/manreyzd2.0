@@ -176,7 +176,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         }
       }
     });
-  }, [clone, data.name]);
+  }, [clone, data.id]);
 
   // Create a clone for overlap visualization
   const overlapClone = useMemo(() => {
