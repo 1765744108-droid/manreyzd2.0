@@ -138,11 +138,6 @@ const ControlPanel: React.FC<{
       <div className="grid grid-cols-2 gap-1">
         <button 
           onClick={() => adjustHeight('up')}
-          onMouseDown={startLongPress('up')}
-          onMouseUp={stopLongPress}
-          onMouseLeave={stopLongPress}
-          onTouchStart={startLongPress('up')}
-          onTouchEnd={stopLongPress}
           className="flex flex-col items-center justify-center p-1 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-md active:scale-95 transition-all"
         >
           <span className="text-sm font-bold text-purple-600">↑</span>
@@ -150,11 +145,6 @@ const ControlPanel: React.FC<{
         </button>
         <button 
           onClick={() => adjustHeight('down')}
-          onMouseDown={startLongPress('down')}
-          onMouseUp={stopLongPress}
-          onMouseLeave={stopLongPress}
-          onTouchStart={startLongPress('down')}
-          onTouchEnd={stopLongPress}
           className="flex flex-col items-center justify-center p-1 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-md active:scale-95 transition-all"
         >
           <span className="text-sm font-bold text-purple-600">↓</span>

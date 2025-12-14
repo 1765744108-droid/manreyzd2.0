@@ -176,7 +176,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         }
       }
     });
-  }, [clone, data.id]);
+  }, [clone, data.name]);
 
   // Create a clone for overlap visualization
   const overlapClone = useMemo(() => {
@@ -227,6 +227,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         if (touches === 1) {
           // Prevent OrbitControls from interfering with single finger drags
           event.stopPropagation();
+          // Mark event as handled for OrbitControls filterEvents
+          (event as any).isHandled = true;
           if (!data.selected) {
              onSelect(data.id);
           }

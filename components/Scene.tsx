@@ -163,6 +163,12 @@ const SceneContent: React.FC<SceneProps> = ({ models, onSelectModel, onUpdateMod
         dampingFactor={0.05}
         enablePan={true}
         enableZoom={true}
+        enableRotate={true}
+        // Prevent OrbitControls from interfering with model dragging
+        filterEvents={(event) => {
+          // Check if event has been marked as handled by useGesture
+          return !(event as any).isHandled;
+        }}
       />
       
       <AutoFitCamera models={models} />

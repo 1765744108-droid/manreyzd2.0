@@ -11,12 +11,12 @@ const INITIAL_MODELS: ModelData[] = [
     id: 'model-1',
     name: '现实',
     url: DEFAULT_MODEL_1_URL,
-    position: [-1.5, 0.005, 0],
+    position: [-1.5, 0, 0],
     rotation: [0, 0, 0], // 初始朝上显示
     scale: [10, 10, 10],
     visible: true,
     selected: false,
-    opacity: 0.6, // 60% opacity
+    opacity: 1.0, // 100% opacity by default
   },
   {
     id: 'model-2',
