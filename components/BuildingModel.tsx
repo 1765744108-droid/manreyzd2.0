@@ -61,6 +61,8 @@ interface BuildingModelProps {
   onSelect: (id: string) => void;
   onUpdate: (id: string, updates: Partial<ModelData>) => void;
   overlapInfo: OverlapInfo;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }
 
 // Custom hook for caching GLTF models
@@ -82,7 +84,7 @@ const useCachedGLTF = (url: string) => {
   return cachedModel ? cachedModel : { scene: loadedScene, ...rest };
 };
 
-const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, onUpdate, overlapInfo }) => {
+const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, onUpdate, overlapInfo, onDragStart, onDragEnd }) => {
   const { scene } = useCachedGLTF(data.url);
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
@@ -227,11 +229,11 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         if (touches === 1) {
           // Prevent OrbitControls from interfering with single finger drags
           event.stopPropagation();
-          // Mark event as handled for OrbitControls filterEvents
-          (event as any).isHandled = true;
           if (!data.selected) {
              onSelect(data.id);
           }
+          // 通知父组件开始拖动
+          onDragStart?.();
         }
         // Allow multi-finger events to propagate to OrbitControls for zoom/rotate
       },
@@ -260,6 +262,12 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         // Allow multi-finger events to propagate to OrbitControls for zoom/rotate
         
         return memo;
+      },
+      onDragEnd: ({ touches }) => {
+        // 通知父组件拖动结束
+        if (touches === 0) {
+          onDragEnd?.();
+        }
       },
       onClick: ({ event }) => {
         event.stopPropagation();

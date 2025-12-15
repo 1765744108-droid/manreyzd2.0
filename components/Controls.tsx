@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Eye, EyeOff, RotateCw, Box } from 'lucide-react';
 import { ModelData } from '../types';
 
@@ -15,9 +15,23 @@ const ControlPanel: React.FC<{
 }> = ({ model, onUpdate, isActive }) => {
   // 长按相关状态
   const [isLongPressing, setIsLongPressing] = useState(false);
-  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
-  const [intervalTimer, setIntervalTimer] = useState<NodeJS.Timeout | null>(null);
   const [longPressDirection, setLongPressDirection] = useState<'up' | 'down' | null>(null);
+  
+  // 使用 useRef 保存定时器引用，避免闭包问题
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  // 使用 useRef 保存最新的 model 位置，确保动画中能获取最新值
+  const positionRef = useRef(model.position);
+  // 保存当前是否正在长按及方向
+  const isPressingRef = useRef(false);
+  const directionRef = useRef<'up' | 'down' | null>(null);
+  // 上一帧时间戳
+  const lastTimeRef = useRef<number>(0);
+  
+  // 同步更新 positionRef
+  useEffect(() => {
+    positionRef.current = model.position;
+  }, [model.position]);
   
   const rotateModel = (axis: 'x' | 'z') => {
     const rad = Math.PI / 2; // 90 degrees
@@ -44,56 +58,97 @@ const ControlPanel: React.FC<{
     onUpdate(model.id, { visible: !model.visible });
   };
 
-  const adjustHeight = (direction: 'up' | 'down') => {
-    const step = 0.025; // Adjust this value to control height change per click (1/2 of current value)
-    const currentPos = [...model.position];
+  // 使用 requestAnimationFrame 实现丝滑动画
+  const animateHeight = useCallback((timestamp: number) => {
+    if (!isPressingRef.current || !directionRef.current) return;
+    
+    // 计算时间增量，实现基于时间的动画（不依赖帧率）
+    const deltaTime = lastTimeRef.current ? (timestamp - lastTimeRef.current) / 1000 : 0.016;
+    lastTimeRef.current = timestamp;
+    
+    // 速度：每秒移动 0.15 单位，更丝滑
+    const speed = 0.15;
+    const step = speed * deltaTime;
+    
+    const currentPos = [...positionRef.current];
+    
+    if (directionRef.current === 'up') {
+      currentPos[1] += step;
+    } else {
+      currentPos[1] = Math.max(0, currentPos[1] - step);
+    }
+    
+    // 同时更新 ref 和调用 onUpdate
+    positionRef.current = [currentPos[0], currentPos[1], currentPos[2]];
+    onUpdate(model.id, { position: [currentPos[0], currentPos[1], currentPos[2]] });
+    
+    // 继续下一帧动画
+    animationFrameRef.current = requestAnimationFrame(animateHeight);
+  }, [model.id, onUpdate]);
+
+  const adjustHeight = useCallback((direction: 'up' | 'down') => {
+    const step = 0.025;
+    const currentPos = [...positionRef.current];
     
     if (direction === 'up') {
       currentPos[1] += step;
     } else {
-      // Prevent model from going below ground (Y >= 0)
       currentPos[1] = Math.max(0, currentPos[1] - step);
     }
     
+    positionRef.current = [currentPos[0], currentPos[1], currentPos[2]];
     onUpdate(model.id, { position: [currentPos[0], currentPos[1], currentPos[2]] });
-  };
+  }, [model.id, onUpdate]);
+
+  // 清除所有定时器和动画帧
+  const clearAllTimers = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    isPressingRef.current = false;
+    directionRef.current = null;
+    lastTimeRef.current = 0;
+  }, []);
 
   // 长按开始处理函数
-  const startLongPress = (direction: 'up' | 'down') => () => {
+  const startLongPress = useCallback((direction: 'up' | 'down') => (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
     // 清除现有的计时器
-    if (longPressTimer) clearTimeout(longPressTimer);
-    if (intervalTimer) clearInterval(intervalTimer);
+    clearAllTimers();
     
     // 设置长按方向
     setLongPressDirection(direction);
     
-    // 防抖动延迟300ms开始长按检测
-    const timer = setTimeout(() => {
+    // 防抖动延迟150ms开始长按检测
+    longPressTimerRef.current = setTimeout(() => {
       setIsLongPressing(true);
+      isPressingRef.current = true;
+      directionRef.current = direction;
+      lastTimeRef.current = 0;
       
-      // 每150ms执行一次高度调整，确保操作流畅且不过度消耗资源
-      const interval = setInterval(() => {
-        adjustHeight(direction);
-      }, 150);
-      
-      setIntervalTimer(interval);
-    }, 300);
-    
-    setLongPressTimer(timer);
-  };
+      // 使用 requestAnimationFrame 启动丝滑动画
+      animationFrameRef.current = requestAnimationFrame(animateHeight);
+    }, 150);
+  }, [animateHeight, clearAllTimers]);
 
   // 长按停止处理函数
-  const stopLongPress = () => {
-    // 清除所有计时器
-    if (longPressTimer) clearTimeout(longPressTimer);
-    if (intervalTimer) clearInterval(intervalTimer);
-    
-    // 重置状态
+  const stopLongPress = useCallback(() => {
+    clearAllTimers();
     setIsLongPressing(false);
-    setLongPressTimer(null);
-    setIntervalTimer(null);
     setLongPressDirection(null);
-  };
+  }, [clearAllTimers]);
+
+  // 组件卸载时清除定时器
+  useEffect(() => {
+    return () => {
+      clearAllTimers();
+    };
+  }, [clearAllTimers]);
 
   return (
     <div className={`p-2 rounded-lg backdrop-blur-md transition-all duration-300 border ${isActive ? 'bg-white/90 border-blue-400 shadow-lg scale-105' : 'bg-white/70 border-gray-200'}`}>
@@ -138,14 +193,24 @@ const ControlPanel: React.FC<{
       <div className="grid grid-cols-2 gap-1">
         <button 
           onClick={() => adjustHeight('up')}
-          className="flex flex-col items-center justify-center p-1 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-md active:scale-95 transition-all"
+          onMouseDown={startLongPress('up')}
+          onMouseUp={stopLongPress}
+          onMouseLeave={stopLongPress}
+          onTouchStart={startLongPress('up')}
+          onTouchEnd={stopLongPress}
+          className={`flex flex-col items-center justify-center p-1 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-md active:scale-95 transition-all ${isLongPressing && longPressDirection === 'up' ? 'bg-purple-100 border-purple-400' : ''}`}
         >
           <span className="text-sm font-bold text-purple-600">↑</span>
           <span className="text-[9px] text-gray-600">升高</span>
         </button>
         <button 
           onClick={() => adjustHeight('down')}
-          className="flex flex-col items-center justify-center p-1 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-md active:scale-95 transition-all"
+          onMouseDown={startLongPress('down')}
+          onMouseUp={stopLongPress}
+          onMouseLeave={stopLongPress}
+          onTouchStart={startLongPress('down')}
+          onTouchEnd={stopLongPress}
+          className={`flex flex-col items-center justify-center p-1 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-md active:scale-95 transition-all ${isLongPressing && longPressDirection === 'down' ? 'bg-purple-100 border-purple-400' : ''}`}
         >
           <span className="text-sm font-bold text-purple-600">↓</span>
           <span className="text-[9px] text-gray-600">降低</span>

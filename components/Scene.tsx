@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
@@ -6,6 +6,7 @@ import BuildingModel from './BuildingModel.tsx';
 import PerformanceMonitor from './PerformanceMonitor.tsx';
 import { ModelData } from '../types';
 import { COLORS, INITIAL_CAMERA_POSITION } from '../constants';
+import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
 
 // Interface for overlap information
 export interface OverlapInfo {
@@ -69,6 +70,17 @@ const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
 
 const SceneContent: React.FC<SceneProps> = ({ models, onSelectModel, onUpdateModel }) => {
   const [overlapInfo, setOverlapInfo] = useState<Record<string, OverlapInfo>>({});
+  const [isModelDragging, setIsModelDragging] = useState(false);
+  const controlsRef = useRef<OrbitControlsType>(null);
+  
+  // 处理模型拖动状态变化
+  const handleDragStart = useCallback(() => {
+    setIsModelDragging(true);
+  }, []);
+  
+  const handleDragEnd = useCallback(() => {
+    setIsModelDragging(false);
+  }, []);
 
   // Detect overlaps between models
   useEffect(() => {
@@ -151,24 +163,22 @@ const SceneContent: React.FC<SceneProps> = ({ models, onSelectModel, onUpdateMod
           onSelect={onSelectModel}
           onUpdate={onUpdateModel}
           overlapInfo={overlapInfo[model.id] || { isOverlapping: false, overlappingWith: [] }}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
         />
       ))}
 
       {/* OrbitControls handles Global Pan (2 fingers) and Rotate (1 finger) when not interacting with a model */}
       <OrbitControls 
+        ref={controlsRef}
         makeDefault 
         minPolarAngle={0} 
         maxPolarAngle={Math.PI} 
         enableDamping={true}
         dampingFactor={0.05}
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
-        // Prevent OrbitControls from interfering with model dragging
-        filterEvents={(event) => {
-          // Check if event has been marked as handled by useGesture
-          return !(event as any).isHandled;
-        }}
+        enablePan={!isModelDragging}
+        enableZoom={!isModelDragging}
+        enableRotate={!isModelDragging}
       />
       
       <AutoFitCamera models={models} />
