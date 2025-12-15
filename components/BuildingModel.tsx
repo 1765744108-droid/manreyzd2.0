@@ -147,79 +147,45 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           materials.forEach((mat) => {
             // Base material properties for solid display
             if (data.id === 'model-1') {
-              // Original anchor model properties (now named '现实')
-              mat.transparent = false;
-              mat.opacity = 1.0; // 100% opacity for original anchor model
-            } else if (data.id === 'model-2') {
-              // Original reality model properties (now named '现实-2')
-              mat.transparent = true;
-              mat.opacity = 0.6; // 60% opacity for original reality model
-            } else {
-              // Other models default to opaque
+              // 模型1：不透明，优先渲染
               mat.transparent = false;
               mat.opacity = 1.0;
-            }
-            mat.depthWrite = true;
-            mat.side = THREE.FrontSide;
-            mat.depthTest = true;
-            mat.blending = THREE.NormalBlending;
-            
-            // Set material color based on model ID to maintain original colors
-            if (data.id === 'model-1') {
-              mat.color.set('#1781b5'); // Original anchor model color
+              mat.depthWrite = true;
+              mat.depthTest = true;
+              // 使用 polygonOffset 避免 Z-fighting
+              mat.polygonOffset = true;
+              mat.polygonOffsetFactor = 1;
+              mat.polygonOffsetUnits = 1;
+              child.renderOrder = 1; // 先渲染
+              mat.color.set('#1781b5');
             } else if (data.id === 'model-2') {
-              mat.color.set('#ee3f4d'); // Original reality model color
+              // 模型2：半透明，后渲染
+              mat.transparent = true;
+              mat.opacity = 0.65;
+              mat.depthWrite = false; // 透明物体不写入深度缓冲
+              mat.depthTest = true;
+              mat.polygonOffset = true;
+              mat.polygonOffsetFactor = -1;
+              mat.polygonOffsetUnits = -1;
+              child.renderOrder = 2; // 后渲染
+              mat.color.set('#ee3f4d');
             } else {
-              mat.color.set(0xffffff); // Default to white if name doesn't match
+              mat.transparent = false;
+              mat.opacity = 1.0;
+              mat.color.set(0xffffff);
             }
             
+            mat.side = THREE.FrontSide;
+            mat.blending = THREE.NormalBlending;
             mat.needsUpdate = true;
           });
         }
       }
     });
-  }, [clone, data.name]);
+  }, [clone, data.id]);
 
-  // Create a clone for overlap visualization
-  const overlapClone = useMemo(() => {
-    if (!overlapInfo.isOverlapping) return null;
-    
-    const clone = scene.clone();
-    clone.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        // Disable shadows for the overlap visualization to avoid artifacts
-        child.castShadow = false;
-        child.receiveShadow = false;
-
-        if (child.material) {
-          // Create a new transparent material for the overlap visualization
-          const originalMaterial = Array.isArray(child.material) ? child.material[0] : child.material;
-          const transparentMaterial = originalMaterial.clone();
-          
-          // Set transparent material properties
-          transparentMaterial.transparent = true;
-          transparentMaterial.opacity = 0.4; // 40% opacity as requested
-          transparentMaterial.depthWrite = false; // Disable depth write to avoid occluding the main model
-          transparentMaterial.side = THREE.BackSide; // Show only the back side (inside) of the model
-          transparentMaterial.blending = THREE.AdditiveBlending; // Additive blending for better visibility
-          
-          // Set material color based on model ID to maintain original colors
-          if (data.id === 'model-1') {
-            transparentMaterial.color.set('#1781b5'); // Original anchor model color
-          } else if (data.id === 'model-2') {
-            transparentMaterial.color.set('#ee3f4d'); // Original reality model color
-          } else {
-            transparentMaterial.color.set(0xffffff); // Default to white if name doesn't match
-          }
-          
-          // Apply the new material
-          child.material = transparentMaterial;
-        }
-      }
-    });
-    
-    return clone;
-  }, [scene, overlapInfo.isOverlapping, data.id]);
+  // 移除 overlapClone 逻辑，避免重复渲染导致闪烁
+  // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果
 
   // Gesture Handling
   const bind = useGesture(
@@ -299,8 +265,6 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         {/* Model offset group - centers the model vertically for proper rotation */}
         <group position={[0, modelOffset.y, 0]}>
           <primitive object={clone} />
-          {/* Render overlap visualization if overlapping */}
-          {overlapClone && <primitive object={overlapClone} />}
         </group>
       </group>
       
