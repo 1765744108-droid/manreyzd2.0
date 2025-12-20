@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Eye, EyeOff, RotateCw, Box } from 'lucide-react';
+import { RotateCw, Box } from 'lucide-react';
 import { ModelData } from '../types';
 
 interface ControlsProps {
@@ -54,10 +54,31 @@ const ControlPanel: React.FC<{
     onUpdate(model.id, { rotation: [currentRot[0], currentRot[1], currentRot[2]] });
   };
 
-  const toggleVisibility = () => {
-    onUpdate(model.id, { visible: !model.visible });
+  // 分部隐藏控制函数
+  const togglePartialVisibility = (part: 'rectangular' | 'other' | 'all') => {
+    const currentVisibility = model.partialVisibility || { rectangularParts: true, otherParts: true };
+    
+    let newVisibility = { ...currentVisibility };
+    
+    switch(part) {
+      case 'rectangular':
+        // 切换矩形立体部分
+        newVisibility.rectangularParts = !currentVisibility.rectangularParts;
+        break;
+      case 'other':
+        // 切换其他部分
+        newVisibility.otherParts = !currentVisibility.otherParts;
+        break;
+      case 'all':
+        // 切换所有部分（同步切换）
+        const allVisible = currentVisibility.rectangularParts && currentVisibility.otherParts;
+        newVisibility = { rectangularParts: !allVisible, otherParts: !allVisible };
+        break;
+    }
+    
+    onUpdate(model.id, { partialVisibility: newVisibility });
   };
-
+  
   // 使用 requestAnimationFrame 实现丝滑动画
   const animateHeight = useCallback((timestamp: number) => {
     if (!isPressingRef.current || !directionRef.current) return;
@@ -157,13 +178,49 @@ const ControlPanel: React.FC<{
            <Box size={12} className={isActive ? "text-blue-500" : "text-gray-500"} />
            <span className={`font-semibold text-xs ${isActive ? "text-blue-700" : "text-gray-700"}`}>{model.name}</span>
         </div>
-        <button 
-          onClick={toggleVisibility}
-          className="p-1 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
-          title={model.visible ? "隐藏" : "显示"}
-        >
-          {model.visible ? <Eye size={14} className="text-gray-600" /> : <EyeOff size={14} className="text-gray-400" />}
-        </button>
+      </div>
+
+      {/* 分部隐藏控制 */}
+      <div className="mt-2 pt-2 border-t border-gray-200">
+        <div className="text-xs font-medium text-gray-500 mb-1">分部显示</div>
+        <div className="grid grid-cols-3 gap-1">
+          <button
+            onClick={() => togglePartialVisibility('rectangular')}
+            className={`flex flex-col items-center justify-center p-1 border rounded-md transition-all text-[9px] ${
+              model.partialVisibility?.rectangularParts !== false 
+                ? 'bg-green-50 border-green-300 text-green-700' 
+                : 'bg-gray-50 border-gray-200 text-gray-400'
+            }`}
+            title="切换矩形立体部分显示/隐藏"
+          >
+            <span className="font-medium">■</span>
+            <span>矩形部分</span>
+          </button>
+          <button
+            onClick={() => togglePartialVisibility('other')}
+            className={`flex flex-col items-center justify-center p-1 border rounded-md transition-all text-[9px] ${
+              model.partialVisibility?.otherParts !== false 
+                ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                : 'bg-gray-50 border-gray-200 text-gray-400'
+            }`}
+            title="切换其他部分显示/隐藏"
+          >
+            <span className="font-medium">●</span>
+            <span>其他部分</span>
+          </button>
+          <button
+            onClick={() => togglePartialVisibility('all')}
+            className={`flex flex-col items-center justify-center p-1 border rounded-md transition-all text-[9px] ${
+              (model.partialVisibility?.rectangularParts !== false && model.partialVisibility?.otherParts !== false)
+                ? 'bg-purple-50 border-purple-300 text-purple-700' 
+                : 'bg-gray-50 border-gray-200 text-gray-400'
+            }`}
+            title="切换所有部分显示/隐藏"
+          >
+            <span className="font-medium">■●</span>
+            <span>所有部分</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-1 mb-1">

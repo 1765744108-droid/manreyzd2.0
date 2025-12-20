@@ -85,14 +85,21 @@ const useCachedGLTF = (url: string) => {
 };
 
 const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, onUpdate, overlapInfo, onDragStart, onDragEnd }) => {
-  const { scene } = useCachedGLTF(data.url);
+  // 加载完整模型作为参考
+  const fullModel = useGLTF(data.url);
+  // 加载分离的模型文件
+  const rectangularPart = data.rectangularPartUrl ? useGLTF(data.rectangularPartUrl) : null;
+  const otherPart = data.otherPartUrl ? useGLTF(data.otherPartUrl) : null;
+  
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
   const [currentRotation, setCurrentRotation] = useState<[number, number, number]>(data.rotation);
   const [targetRotation, setTargetRotation] = useState<[number, number, number]>(data.rotation);
   
-  // Clone the scene so we can modify materials independently for each instance
-  const clone = React.useMemo(() => scene.clone(), [scene]);
+  // 克隆模型场景
+  const fullClone = React.useMemo(() => fullModel.scene.clone(), [fullModel]);
+  const rectangularClone = React.useMemo(() => rectangularPart ? rectangularPart.scene.clone() : null, [rectangularPart]);
+  const otherClone = React.useMemo(() => otherPart ? otherPart.scene.clone() : null, [otherPart]);
   
   // Update target rotation when data.rotation changes
   useEffect(() => {
@@ -114,75 +121,111 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
 
   // Calculate vertical center and prepare model for rotation around it
   const [modelOffset, setModelOffset] = useState<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+  const [rectangularPartOffset, setRectangularPartOffset] = useState<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+  const [otherPartOffset, setOtherPartOffset] = useState<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
 
-  // Calculate vertical center for proper rotation
-  // This effect runs even when the model is hidden to ensure proper positioning when visible
+  // 使用完整模型计算偏移量，并计算各部分的相对位置
   useEffect(() => {
-    // Reset position to calculate accurate bounding box
-    clone.position.set(0, 0, 0);
-    clone.updateMatrixWorld(true);
+    if (!fullClone || !rectangularClone || !otherClone) return;
     
-    // Calculate model bounding box with proper scaling
-    const box = new THREE.Box3().setFromObject(clone);
-    const minY = box.min.y;
+    // 重置位置以计算准确的边界框
+    fullClone.position.set(0, 0, 0);
+    fullClone.updateMatrixWorld(true);
     
-    // Set model offset to make its bottom rest on ground (Y=0)
+    rectangularClone.position.set(0, 0, 0);
+    rectangularClone.updateMatrixWorld(true);
+    
+    otherClone.position.set(0, 0, 0);
+    otherClone.updateMatrixWorld(true);
+    
+    // 计算完整模型的边界框
+    const fullBox = new THREE.Box3().setFromObject(fullClone);
+    const minY = fullBox.min.y;
+    
+    // 设置模型偏移，使底部贴合地面（Y=0）
     const offsetY = -minY;
     setModelOffset(new THREE.Vector3(0, offsetY, 0));
     
-    // Update matrix world after positioning
-    clone.updateMatrixWorld(true);
-  }, [clone]);
+    // 计算各部分的边界框
+    const rectBox = new THREE.Box3().setFromObject(rectangularClone);
+    const otherBox = new THREE.Box3().setFromObject(otherClone);
+    
+    // 计算矩形部分的高度
+    const rectHeight = rectBox.max.y - rectBox.min.y;
+    
+    // 计算矩形部分的水平偏移：将其左侧边缘与塔仓右侧边缘对齐
+    const otherRightEdge = otherBox.max.x; // 塔仓的右侧边缘
+    const rectLeftEdge = rectBox.min.x;   // 矩形的左侧边缘
+    
+    // 计算需要的水平偏移量
+    const horizontalOffset = otherRightEdge - rectLeftEdge;
+    
+    // 计算垂直偏移量：将矩形部分向下移动其高度的1/6
+    const verticalOffset = -rectHeight / 6;
+    
+    // 设置矩形部分的偏移（向右移动 + 向下移动）
+    setRectangularPartOffset(new THREE.Vector3(horizontalOffset, verticalOffset, 0));
+    
+    // 塔仓部分保持原位
+    setOtherPartOffset(new THREE.Vector3(0, 0, 0));
+    
+    fullClone.updateMatrixWorld(true);
+  }, [fullClone, rectangularClone, otherClone]);
 
-  // Material properties for solid model display with overlap handling
+  // 设置材质属性
   useEffect(() => {
-    clone.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
+    const setupMaterials = (clone: THREE.Group | null, isRectangular: boolean) => {
+      if (!clone) return;
+      
+      clone.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
 
-        if (child.material) {
-          const materials = Array.isArray(child.material) ? child.material : [child.material];
-          
-          materials.forEach((mat) => {
-            // Base material properties for solid display
-            if (data.id === 'model-1') {
-              // 模型1：不透明，优先渲染
-              mat.transparent = false;
-              mat.opacity = 1.0;
-              mat.depthWrite = true;
-              mat.depthTest = true;
-              // 使用 polygonOffset 避免 Z-fighting
-              mat.polygonOffset = true;
-              mat.polygonOffsetFactor = 1;
-              mat.polygonOffsetUnits = 1;
-              child.renderOrder = 1; // 先渲染
-              mat.color.set('#1781b5');
-            } else if (data.id === 'model-2') {
-              // 模型2：半透明，后渲染
-              mat.transparent = true;
-              mat.opacity = 0.65;
-              mat.depthWrite = false; // 透明物体不写入深度缓冲
-              mat.depthTest = true;
-              mat.polygonOffset = true;
-              mat.polygonOffsetFactor = -1;
-              mat.polygonOffsetUnits = -1;
-              child.renderOrder = 2; // 后渲染
-              mat.color.set('#ee3f4d');
-            } else {
-              mat.transparent = false;
-              mat.opacity = 1.0;
-              mat.color.set(0xffffff);
-            }
+          if (child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
             
-            mat.side = THREE.FrontSide;
-            mat.blending = THREE.NormalBlending;
-            mat.needsUpdate = true;
-          });
+            materials.forEach((mat) => {
+              if (data.id === 'model-1') {
+                // 模型1：不透明，优先渲染
+                mat.transparent = false;
+                mat.opacity = 1.0;
+                mat.depthWrite = true;
+                mat.depthTest = true;
+                mat.polygonOffset = true;
+                mat.polygonOffsetFactor = 1;
+                mat.polygonOffsetUnits = 1;
+                child.renderOrder = 1;
+                mat.color.set('#1781b5');
+              } else if (data.id === 'model-2') {
+                // 模型2：半透明，后渲染
+                mat.transparent = true;
+                mat.opacity = 0.65;
+                mat.depthWrite = false;
+                mat.depthTest = true;
+                mat.polygonOffset = true;
+                mat.polygonOffsetFactor = -1;
+                mat.polygonOffsetUnits = -1;
+                child.renderOrder = 2;
+                mat.color.set('#ee3f4d');
+              } else {
+                mat.transparent = false;
+                mat.opacity = 1.0;
+                mat.color.set(0xffffff);
+              }
+              
+              mat.side = THREE.FrontSide;
+              mat.blending = THREE.NormalBlending;
+              mat.needsUpdate = true;
+            });
+          }
         }
-      }
-    });
-  }, [clone, data.id]);
+      });
+    };
+
+    setupMaterials(rectangularClone, true);
+    setupMaterials(otherClone, false);
+  }, [rectangularClone, otherClone, data.id]);
 
   // 移除 overlapClone 逻辑，避免重复渲染导致闪烁
   // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果
@@ -251,6 +294,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
 
   if (!data.visible) return null;
   
+  // 获取分部可见性设置
+  const partialVisibility = data.partialVisibility || { rectangularParts: true, otherParts: true };
+  
   return (
     <group 
       ref={groupRef}
@@ -260,14 +306,25 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      {/* Rotation group - rotates around vertical center */}
+      {/* Rotation group */}
       <group rotation={currentRotation}>
-        {/* Model offset group - centers the model vertically for proper rotation */}
+        {/* 使用统一的模型偏移，保持两个部分的相对位置 */}
         <group position={[0, modelOffset.y, 0]}>
-          <primitive object={clone} />
+          {/* 矩形立体部分 - 应用水平偏移使其与塔仓精确连接 */}
+          {rectangularClone && partialVisibility.rectangularParts && (
+            <group position={[rectangularPartOffset.x, rectangularPartOffset.y, rectangularPartOffset.z]}>
+              <primitive object={rectangularClone} />
+            </group>
+          )}
+          
+          {/* 塔仓部分 - 保持原位 */}
+          {otherClone && partialVisibility.otherParts && (
+            <group position={[otherPartOffset.x, otherPartOffset.y, otherPartOffset.z]}>
+              <primitive object={otherClone} />
+            </group>
+          )}
         </group>
-      </group>
-      
+      </group>      
       {/* Visual Feedback: Selection Outline */}
       {(data.selected) && (
         <Outlines 

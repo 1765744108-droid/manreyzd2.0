@@ -10,24 +10,36 @@ const INITIAL_MODELS: ModelData[] = [
   {
     id: 'model-1',
     name: '现实',
-    url: DEFAULT_MODEL_1_URL,
+    url: '/远征队 完整 现实.glb',
+    rectangularPartUrl: '/远征队 矩形整体 现实.glb',
+    otherPartUrl: '/远征队 塔仓 现实.glb',
     position: [-1.5, 0, 0],
-    rotation: [0, 0, 0], // 初始朝上显示
+    rotation: [0, 0, 0],
     scale: [10, 10, 10],
     visible: true,
     selected: false,
-    opacity: 1.0, // 100% opacity by default
+    opacity: 1.0,
+    partialVisibility: {
+      rectangularParts: true,
+      otherParts: true
+    }
   },
   {
     id: 'model-2',
     name: '锚定',
-    url: DEFAULT_MODEL_2_URL,
+    url: '/远征队 完整 锚定.glb',
+    rectangularPartUrl: '/远征队 矩形整体 锚定.glb',
+    otherPartUrl: '/远征队 塔仓 锚定.glb',
     position: [1.5, 0.005, 0],
-    rotation: [0, 0, 0], // 初始朝上显示
+    rotation: [0, 0, 0],
     scale: [10, 10, 10], 
     visible: true,
     selected: false,
-    opacity: 1.0, // 100% opacity by default
+    opacity: 1.0,
+    partialVisibility: {
+      rectangularParts: true,
+      otherParts: true
+    }
   },
 ];
 
