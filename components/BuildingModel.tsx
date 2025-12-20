@@ -196,9 +196,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
             
             materials.forEach((mat) => {
               if (data.id === 'model-1') {
-                // 模型1：不透明，优先渲染
-                mat.transparent = false;
-                mat.opacity = 1.0;
+                // 模型1：半透明（85%不透明度），优先渲染
+                mat.transparent = true;
+                mat.opacity = 0.85;
                 mat.depthWrite = true;
                 mat.depthTest = true;
                 mat.polygonOffset = true;
@@ -315,11 +315,11 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      {/* X轴和Y轴旋转（使用原点为中心） */}
-      <group rotation={[currentRotation[0], currentRotation[1], 0]}>
-        {/* Z轴旋转（使用矩形中心为中心） */}
+      {/* Y轴旋转（顺时针）使用原点为中心 */}
+      <group rotation={[0, currentRotation[1], 0]}>
+        {/* X轴和Z轴旋转使用矩形中心为中心 */}
         <group position={[rotationCenter.x, rotationCenter.y, rotationCenter.z]}>
-          <group rotation={[0, 0, currentRotation[2]]}>
+          <group rotation={[currentRotation[0], 0, currentRotation[2]]}>
             <group position={[-rotationCenter.x, -rotationCenter.y, -rotationCenter.z]}>
               {/* 使用统一的模型偏移，保持两个部分的相对位置 */}
               <group position={[0, modelOffset.y, 0]}>
