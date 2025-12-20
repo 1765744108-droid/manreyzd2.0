@@ -123,6 +123,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   const [modelOffset, setModelOffset] = useState<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
   const [rectangularPartOffset, setRectangularPartOffset] = useState<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
   const [otherPartOffset, setOtherPartOffset] = useState<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
+  const [rotationCenter, setRotationCenter] = useState<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
 
   // 使用完整模型计算偏移量，并计算各部分的相对位置
   useEffect(() => {
@@ -168,6 +169,14 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     
     // 塔仓部分保持原位
     setOtherPartOffset(new THREE.Vector3(0, 0, 0));
+    
+    // 计算矩形部分的几何中心（应用偏移后的位置）
+    const rectCenter = new THREE.Vector3(
+      (rectBox.min.x + rectBox.max.x) / 2 + horizontalOffset,
+      (rectBox.min.y + rectBox.max.y) / 2 + offsetY + verticalOffset,
+      (rectBox.min.z + rectBox.max.z) / 2
+    );
+    setRotationCenter(rectCenter);
     
     fullClone.updateMatrixWorld(true);
   }, [fullClone, rectangularClone, otherClone]);
@@ -306,23 +315,30 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      {/* Rotation group */}
-      <group rotation={currentRotation}>
-        {/* 使用统一的模型偏移，保持两个部分的相对位置 */}
-        <group position={[0, modelOffset.y, 0]}>
-          {/* 矩形立体部分 - 应用水平偏移使其与塔仓精确连接 */}
-          {rectangularClone && partialVisibility.rectangularParts && (
-            <group position={[rectangularPartOffset.x, rectangularPartOffset.y, rectangularPartOffset.z]}>
-              <primitive object={rectangularClone} />
+      {/* X轴和Y轴旋转（使用原点为中心） */}
+      <group rotation={[currentRotation[0], currentRotation[1], 0]}>
+        {/* Z轴旋转（使用矩形中心为中心） */}
+        <group position={[rotationCenter.x, rotationCenter.y, rotationCenter.z]}>
+          <group rotation={[0, 0, currentRotation[2]]}>
+            <group position={[-rotationCenter.x, -rotationCenter.y, -rotationCenter.z]}>
+              {/* 使用统一的模型偏移，保持两个部分的相对位置 */}
+              <group position={[0, modelOffset.y, 0]}>
+                {/* 矩形立体部分 - 应用水平偏移使其与塔仓精确连接 */}
+                {rectangularClone && partialVisibility.rectangularParts && (
+                  <group position={[rectangularPartOffset.x, rectangularPartOffset.y, rectangularPartOffset.z]}>
+                    <primitive object={rectangularClone} />
+                  </group>
+                )}
+                
+                {/* 塔仓部分 - 保持原位 */}
+                {otherClone && partialVisibility.otherParts && (
+                  <group position={[otherPartOffset.x, otherPartOffset.y, otherPartOffset.z]}>
+                    <primitive object={otherClone} />
+                  </group>
+                )}
+              </group>
             </group>
-          )}
-          
-          {/* 塔仓部分 - 保持原位 */}
-          {otherClone && partialVisibility.otherParts && (
-            <group position={[otherPartOffset.x, otherPartOffset.y, otherPartOffset.z]}>
-              <primitive object={otherClone} />
-            </group>
-          )}
+          </group>
         </group>
       </group>      
       {/* Visual Feedback: Selection Outline */}
