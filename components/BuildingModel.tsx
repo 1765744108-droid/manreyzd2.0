@@ -195,10 +195,14 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
             const materials = Array.isArray(child.material) ? child.material : [child.material];
             
             materials.forEach((mat) => {
+              // 基础设置
+              const baseOpacity = data.opacity ?? 1.0;
+              const isWireframe = data.wireframe ?? false;
+              
               if (data.id === 'model-1') {
-                // 模型1：半透明（85%不透明度），优先渲染
-                mat.transparent = true;
-                mat.opacity = 0.85;
+                // 模型1：蓝色调
+                mat.transparent = baseOpacity < 1.0;
+                mat.opacity = baseOpacity;
                 mat.depthWrite = true;
                 mat.depthTest = true;
                 mat.polygonOffset = true;
@@ -207,10 +211,10 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
                 child.renderOrder = 1;
                 mat.color.set('#1781b5');
               } else if (data.id === 'model-2') {
-                // 模型2：半透明，后渲染
-                mat.transparent = true;
-                mat.opacity = 0.65;
-                mat.depthWrite = false;
+                // 模型2：红色调
+                mat.transparent = baseOpacity < 1.0;
+                mat.opacity = baseOpacity * 0.85; // 稍微更透明
+                mat.depthWrite = baseOpacity >= 1.0;
                 mat.depthTest = true;
                 mat.polygonOffset = true;
                 mat.polygonOffsetFactor = -1;
@@ -218,10 +222,13 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
                 child.renderOrder = 2;
                 mat.color.set('#ee3f4d');
               } else {
-                mat.transparent = false;
-                mat.opacity = 1.0;
+                mat.transparent = baseOpacity < 1.0;
+                mat.opacity = baseOpacity;
                 mat.color.set(0xffffff);
               }
+              
+              // 线框模式
+              mat.wireframe = isWireframe;
               
               mat.side = THREE.FrontSide;
               mat.blending = THREE.NormalBlending;
@@ -234,7 +241,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
 
     setupMaterials(rectangularClone, true);
     setupMaterials(otherClone, false);
-  }, [rectangularClone, otherClone, data.id]);
+  }, [rectangularClone, otherClone, data.id, data.opacity, data.wireframe]);
 
   // 移除 overlapClone 逻辑，避免重复渲染导致闪烁
   // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果

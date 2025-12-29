@@ -1,10 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Controls } from './components/Controls.tsx';
 import { Scene } from './components/Scene.tsx';
+import { ViewCube } from './components/ViewCube.tsx';
 import PerformanceMonitor from './components/PerformanceMonitor.tsx';
 import { ModelData } from './types';
 import { DEFAULT_MODEL_1_URL, DEFAULT_MODEL_2_URL } from './constants';
 import { Upload, Info } from 'lucide-react';
+import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
 
 const INITIAL_MODELS: ModelData[] = [
   {
@@ -59,6 +61,7 @@ const App: React.FC = () => {
   const [models, setModels] = useState<ModelData[]>(INITIAL_MODELS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showPerformanceMonitor, setShowPerformanceMonitor] = useState<boolean>(false);
+  const cameraControlsRef = useRef<OrbitControlsType | null>(null);
 
   const handleSelectModel = useCallback((id: string | null) => {
     setSelectedId(id);
@@ -115,11 +118,15 @@ const App: React.FC = () => {
           models={models} 
           onSelectModel={handleSelectModel}
           onUpdateModel={handleUpdateModel}
+          cameraControlsRef={cameraControlsRef}
         />
       </div>
       
       {/* Performance Monitor */}
       <PerformanceMonitor show={showPerformanceMonitor} />
+      
+      {/* ViewCube 导航立方体 */}
+      <ViewCube mainCameraControlsRef={cameraControlsRef} />
 
       {/* UI Overlay */}
       <div className="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between">

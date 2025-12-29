@@ -16,6 +16,8 @@ export interface ModelData {
     rectangularParts: boolean;  // 矩形立体部分的可见性
     otherParts: boolean;        // 其他部分的可见性
   };
+  // 显示模式
+  wireframe?: boolean;  // 线框模式
 }
 
 export interface DragState {

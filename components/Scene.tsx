@@ -19,6 +19,8 @@ interface SceneProps {
   models: ModelData[];
   onSelectModel: (id: string | null) => void;
   onUpdateModel: (id: string, updates: Partial<ModelData>) => void;
+  onCameraPreset?: (preset: 'top' | 'front' | 'side') => void;
+  cameraControlsRef?: React.MutableRefObject<OrbitControlsType | null>;
 }
 
 // Ground plane that handles deselection when clicked
@@ -68,10 +70,17 @@ const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
     return null;
 }
 
-const SceneContent: React.FC<SceneProps> = ({ models, onSelectModel, onUpdateModel }) => {
+const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ models, onSelectModel, onUpdateModel, cameraControlsRef, shadowMapSize = 2048 }) => {
   const [overlapInfo, setOverlapInfo] = useState<Record<string, OverlapInfo>>({});
   const [isModelDragging, setIsModelDragging] = useState(false);
   const controlsRef = useRef<OrbitControlsType>(null);
+  
+  // 将 controls ref 暴露给父组件
+  useEffect(() => {
+    if (cameraControlsRef && controlsRef.current) {
+      cameraControlsRef.current = controlsRef.current;
+    }
+  }, [cameraControlsRef]);
   
   // 处理模型拖动状态变化
   const handleDragStart = useCallback(() => {
@@ -140,7 +149,7 @@ const SceneContent: React.FC<SceneProps> = ({ models, onSelectModel, onUpdateMod
         position={[10, 20, 10]} 
         intensity={1.5} 
         castShadow 
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[shadowMapSize, shadowMapSize]}
       />
 
       {/* Enhanced grid with better visibility */}
@@ -187,14 +196,25 @@ const SceneContent: React.FC<SceneProps> = ({ models, onSelectModel, onUpdateMod
 };
 
 export const Scene: React.FC<SceneProps> = (props) => {
+  // 移动端性能优化：检测设备类型
+  const isMobile = typeof window !== 'undefined' && (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth < 768
+  );
+  
+  // 移动端降低 dpr 和阴影质量
+  const dpr = isMobile ? [1, 1.5] : [1, 2];
+  const shadowMapSize = isMobile ? 1024 : 2048;
+  
   return (
     <Canvas
       shadows
       camera={{ position: INITIAL_CAMERA_POSITION, fov: 45 }}
       style={{ background: COLORS.background, touchAction: 'none' }}
-      dpr={[1, 2]} 
+      dpr={dpr}
+      performance={{ min: 0.5 }} // 自动降级性能
     >
-      <SceneContent {...props} />
+      <SceneContent {...props} shadowMapSize={shadowMapSize} />
     </Canvas>
   );
 };
