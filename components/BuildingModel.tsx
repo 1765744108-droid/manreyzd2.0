@@ -1,7 +1,6 @@
-import React, { useRef, useState, useEffect, Suspense, useMemo } from 'react';
-import { useThree, useFrame } from '@react-three/fiber';
+import React, { useRef, useState, useEffect, Suspense, useMemo, useCallback } from 'react';
+import { useThree, useFrame, ThreeEvent } from '@react-three/fiber';
 import { useGLTF, Outlines, OrbitControls } from '@react-three/drei';
-import { useGesture } from '@use-gesture/react';
 import * as THREE from 'three';
 import { ModelData } from '../types';
 import { COLORS } from '../constants';
@@ -85,6 +84,9 @@ const useCachedGLTF = (url: string) => {
 };
 
 const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, onUpdate, overlapInfo, onDragStart, onDragEnd }) => {
+  // 获取相机用于视角感知拖拽
+  const { camera } = useThree();
+  
   // 加载完整模型作为参考
   const fullModel = useGLTF(data.url);
   // 加载分离的模型文件
@@ -266,88 +268,125 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   // 移除 overlapClone 逻辑，避免重复渲染导致闪烁
   // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果
 
-  // Gesture Handling - 全面优化版
-  const bind = useGesture(
-    {
-      onDragStart: ({ event, touches }) => {
-        // Only handle single finger drags for model movement
-        if (touches === 1) {
-          // Prevent OrbitControls from interfering with single finger drags
-          event.stopPropagation();
-          if (!data.selected) {
-             onSelect(data.id);
-          }
-          // 通知父组件开始拖动
-          onDragStart?.();
-          // 重置拖动状态
-          isDraggingRef.current = true;
-          lastPointerPosRef.current = null;
-        }
-      },
-      onDrag: ({ xy: [x, y], touches, event, first }) => {
-        // Only handle single finger drags for model movement
-        if (touches === 1 && data.selected) {
-          event.stopPropagation();
-          
-          // 初始化指针位置
-          if (first || !lastPointerPosRef.current) {
-            lastPointerPosRef.current = { x, y };
-            return;
-          }
+  // 获取视口尺寸用于计算移动缩放
+  const { size } = useThree();
 
-          // Ground boundaries (6x6 grid = -3 to 3 in X and Z)
-          const GRID_SIZE = 6;
-          const BOUNDARY_MIN = -GRID_SIZE / 2;
-          const BOUNDARY_MAX = GRID_SIZE / 2;
-          
-          // 计算指针移动增量（相对于上一帧）
-          const deltaX = x - lastPointerPosRef.current.x;
-          const deltaY = y - lastPointerPosRef.current.y;
-          
-          // 更新指针位置
-          lastPointerPosRef.current = { x, y };
-          
-          // 优化的移动速度，更高的灵敏度
-          const moveSpeed = 0.008; // 降低以提高精度
-          
-          // 使用 positionRef 获取最新位置，避免闭包问题
-          const currentPos = positionRef.current;
-          
-          // Calculate new position with boundary constraints
-          const newX = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[0] + (deltaX * moveSpeed)));
-          const newZ = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[2] + (deltaY * moveSpeed)));
-
-          // 更新位置
-          const newPosition: [number, number, number] = [newX, currentPos[1], newZ];
-          positionRef.current = newPosition;
-          
-          // 触发更新（使用 requestAnimationFrame 优化）
-          requestAnimationFrame(() => {
-            onUpdate(data.id, { position: newPosition });
-          });
-        }
-      },
-      onDragEnd: ({ touches }) => {
-        // 通知父组件拖动结束
-        if (touches === 0) {
-          isDraggingRef.current = false;
-          lastPointerPosRef.current = null;
-          onDragEnd?.();
-        }
-      },
-      onClick: ({ event }) => {
-        event.stopPropagation();
-        onSelect(data.id);
-      }
-    },
-    {
-      drag: { 
-        filterTaps: true,
-        threshold: 3, // 降低阈值提高响应
-        pointer: { touch: true }, // 优化触摸事件
-      }
+  // 拖拽处理 - 全视角感知，丝滑跟随
+  const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    
+    // 选中模型
+    if (!data.selected) {
+      onSelect(data.id);
     }
-  );
+    
+    // 开始拖拽
+    isDraggingRef.current = true;
+    lastPointerPosRef.current = { x: e.clientX, y: e.clientY };
+    onDragStart?.();
+    
+    // 从相机矩阵直接提取方向向量（最可靠的方法）
+    camera.updateMatrixWorld();
+    const m = camera.matrixWorld.elements;
+    
+    // 相机右向量（屏幕X方向）- 矩阵第一列
+    const cameraRight = new THREE.Vector3(m[0], m[1], m[2]).normalize();
+    
+    // 相机上向量（屏幕Y方向）- 矩阵第二列
+    const cameraUp = new THREE.Vector3(m[4], m[5], m[6]).normalize();
+    
+    // 将向量投影到XZ平面（模型只在地面上移动）
+    const rightOnPlane = new THREE.Vector3(cameraRight.x, 0, cameraRight.z);
+    const upOnPlane = new THREE.Vector3(cameraUp.x, 0, cameraUp.z);
+    
+    // 处理俯视角度（当相机几乎垂直向下看时）
+    const rightLen = rightOnPlane.length();
+    const upLen = upOnPlane.length();
+    
+    if (rightLen > 0.01) {
+      rightOnPlane.divideScalar(rightLen);
+    } else {
+      // 俯视时使用默认右向量
+      rightOnPlane.set(1, 0, 0);
+    }
+    
+    if (upLen > 0.01) {
+      upOnPlane.divideScalar(upLen);
+    } else {
+      // 俯视时使用默认上向量（屏幕向上对应世界-Z）
+      upOnPlane.set(0, 0, -1);
+    }
+    
+    // 计算移动缩放系数（基于视口大小和相机距离）
+    const cameraDistance = camera.position.length();
+    const baseMoveSpeed = 0.012; // 基础速度，丝滑但不过快
+    const distanceFactor = Math.max(0.5, Math.min(2, cameraDistance / 10));
+    const moveSpeed = baseMoveSpeed * distanceFactor;
+    
+    // 添加全局事件监听器（确保指针移出模型区域时仍能跟随）
+    const handleGlobalMove = (moveEvent: PointerEvent) => {
+      if (!isDraggingRef.current) return;
+      if (!lastPointerPosRef.current) return;
+      
+      // 计算屏幕空间移动增量
+      const deltaX = moveEvent.clientX - lastPointerPosRef.current.x;
+      const deltaY = moveEvent.clientY - lastPointerPosRef.current.y;
+      
+      // 立即更新指针位置（减少延迟）
+      lastPointerPosRef.current = { x: moveEvent.clientX, y: moveEvent.clientY };
+      
+      // 忽略微小移动（避免抖动）
+      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+      
+      // 边界限制
+      const GRID_SIZE = 6;
+      const BOUNDARY_MIN = -GRID_SIZE / 2;
+      const BOUNDARY_MAX = GRID_SIZE / 2;
+      
+      // 根据屏幕移动计算世界空间移动
+      // 屏幕向右(+deltaX) -> 模型沿相机右向量移动
+      // 屏幕向下(+deltaY) -> 模型沿相机上向量的反方向移动
+      const worldDeltaX = (rightOnPlane.x * deltaX - upOnPlane.x * deltaY) * moveSpeed;
+      const worldDeltaZ = (rightOnPlane.z * deltaX - upOnPlane.z * deltaY) * moveSpeed;
+      
+      // 获取当前位置
+      const currentPos = positionRef.current;
+      
+      // 计算新位置（应用边界约束）
+      const newX = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[0] + worldDeltaX));
+      const newZ = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[2] + worldDeltaZ));
+      
+      // 更新位置
+      const newPosition: [number, number, number] = [newX, currentPos[1], newZ];
+      positionRef.current = newPosition;
+      
+      // 立即触发更新
+      onUpdate(data.id, { position: newPosition });
+    };
+    
+    const handleGlobalUp = () => {
+      isDraggingRef.current = false;
+      lastPointerPosRef.current = null;
+      onDragEnd?.();
+      
+      // 移除全局事件监听器
+      window.removeEventListener('pointermove', handleGlobalMove);
+      window.removeEventListener('pointerup', handleGlobalUp);
+      window.removeEventListener('pointercancel', handleGlobalUp);
+    };
+    
+    // 添加全局事件监听器 - 使用 passive 提高性能
+    window.addEventListener('pointermove', handleGlobalMove, { passive: true });
+    window.addEventListener('pointerup', handleGlobalUp);
+    window.addEventListener('pointercancel', handleGlobalUp);
+  }, [data.selected, data.id, onSelect, onDragStart, onDragEnd, onUpdate, camera, size]);
+
+  const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
+    // 只有在没有拖拽时才触发点击
+    if (isDraggingRef.current) return;
+    e.stopPropagation();
+    onSelect(data.id);
+  }, [data.id, onSelect]);
 
   if (!data.visible) return null;
   
@@ -359,7 +398,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       ref={groupRef}
       position={data.position} 
       scale={data.scale}
-      {...(bind() as any)}
+      onPointerDown={handlePointerDown}
+      onClick={handleClick}
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >

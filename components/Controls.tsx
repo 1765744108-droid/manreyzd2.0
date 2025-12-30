@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { RotateCw, Box, ChevronDown, ChevronUp, RotateCcw, X, Hand, Move, ZoomIn, MousePointer2, Eye, EyeOff, Layers } from 'lucide-react';
+import { RotateCw, Box, ChevronDown, ChevronUp, RotateCcw, X, Hand, Move, ZoomIn, MousePointer2, Eye, EyeOff, Layers, Compass, SlidersHorizontal, Smartphone, Navigation } from 'lucide-react';
 import { ModelData } from '../types';
 
 interface ControlsProps {
@@ -393,49 +393,71 @@ export const Controls: React.FC<ControlsProps> = ({ models, onUpdate, selectedId
               </button>
             </div>
             
-            {/* 手势说明列表 */}
-            <div className="p-6 space-y-4">
+            {/* 手势说明列表 - 添加滚动支持 */}
+            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
               {/* 单指旋转 */}
-              <div className="flex items-start gap-4 p-3 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
-                <div className="flex-shrink-0 w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                  <RotateCw size={24} className="text-white" />
+              <div className="flex items-start gap-3 p-2.5 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
+                <div className="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                  <RotateCw size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-800 mb-1">单指拖动</div>
-                  <div className="text-sm text-gray-600">旋转查看模型各个角度</div>
+                  <div className="font-semibold text-gray-800 text-sm mb-0.5">单指拖动</div>
+                  <div className="text-xs text-gray-600">旋转查看模型各个角度</div>
                 </div>
               </div>
-              
+                          
               {/* 双指缩放 */}
-              <div className="flex items-start gap-4 p-3 bg-green-50 rounded-xl hover:bg-green-100 transition-colors">
-                <div className="flex-shrink-0 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
-                  <ZoomIn size={24} className="text-white" />
+              <div className="flex items-start gap-3 p-2.5 bg-green-50 rounded-xl hover:bg-green-100 transition-colors">
+                <div className="flex-shrink-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                  <ZoomIn size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-800 mb-1">双指捏合</div>
-                  <div className="text-sm text-gray-600">放大或缩小视图</div>
+                  <div className="font-semibold text-gray-800 text-sm mb-0.5">双指捨合</div>
+                  <div className="text-xs text-gray-600">放大或缩小视图</div>
                 </div>
               </div>
-              
-              {/* 双指平移 */}
-              <div className="flex items-start gap-4 p-3 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
-                <div className="flex-shrink-0 w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center">
-                  <Move size={24} className="text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-gray-800 mb-1">双指拖动</div>
-                  <div className="text-sm text-gray-600">平移整个场景视图</div>
-                </div>
-              </div>
-              
+                          
               {/* 点击模型 */}
-              <div className="flex items-start gap-4 p-3 bg-orange-50 rounded-xl hover:bg-orange-100 transition-colors">
-                <div className="flex-shrink-0 w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
-                  <MousePointer2 size={24} className="text-white" />
+              <div className="flex items-start gap-3 p-2.5 bg-orange-50 rounded-xl hover:bg-orange-100 transition-colors">
+                <div className="flex-shrink-0 w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
+                  <MousePointer2 size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-800 mb-1">点击模型</div>
-                  <div className="text-sm text-gray-600">选中后可拖动移动位置</div>
+                  <div className="font-semibold text-gray-800 text-sm mb-0.5">点击并拖动模型</div>
+                  <div className="text-xs text-gray-600">选中后可在地面上移动位置，支持全视角跟随</div>
+                </div>
+              </div>
+                          
+              {/* ViewCube导航立方体 */}
+              <div className="flex items-start gap-3 p-2.5 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors">
+                <div className="flex-shrink-0 w-10 h-10 bg-indigo-500 rounded-full flex items-center justify-center">
+                  <Navigation size={20} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-800 text-sm mb-0.5">导航立方体</div>
+                  <div className="text-xs text-gray-600">右上角3D立方体，点击切换预设视角，拖动旋转视图</div>
+                </div>
+              </div>
+                          
+              {/* 透明度调节 */}
+              <div className="flex items-start gap-3 p-2.5 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
+                <div className="flex-shrink-0 w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                  <SlidersHorizontal size={20} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-800 text-sm mb-0.5">透明度调节</div>
+                  <div className="text-xs text-gray-600">底部控制栏滑块可调节模型透明度</div>
+                </div>
+              </div>
+                          
+              {/* 移动端优化 */}
+              <div className="flex items-start gap-3 p-2.5 bg-teal-50 rounded-xl hover:bg-teal-100 transition-colors">
+                <div className="flex-shrink-0 w-10 h-10 bg-teal-500 rounded-full flex items-center justify-center">
+                  <Smartphone size={20} className="text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-gray-800 text-sm mb-0.5">移动端优化</div>
+                  <div className="text-xs text-gray-600">界面已适配手机/平板，触摸操作更流畅</div>
                 </div>
               </div>
             </div>
@@ -454,8 +476,15 @@ export const Controls: React.FC<ControlsProps> = ({ models, onUpdate, selectedId
         </div>
       )}
       
-      {/* 模型控制面板 - 增加底部安全距离 */}
-      <div className="absolute bottom-4 left-2 right-2 flex flex-row gap-2 pointer-events-none sm:bottom-8 sm:left-4 sm:right-4 sm:gap-3" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* 模型控制面板 - 增加底部安全距离，避免与浏览器底部区域重叠 */}
+      <div 
+        className="absolute left-2 right-2 flex flex-row gap-2 pointer-events-none sm:left-4 sm:right-4 sm:gap-3" 
+        style={{ 
+          // 移动端底部距离增加到 24px，桌面端 40px，避免与浏览器标签页切换区域重叠
+          bottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
+          paddingBottom: '0',
+        }}
+      >
         {models.map((model) => (
           <div key={model.id} className="flex-1 pointer-events-auto">
             <ControlPanel 

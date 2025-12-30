@@ -55,7 +55,7 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     }
   });
 
-  // 拖拽手势处理
+  // 拖拽手势处理 - 移动端优化
   const bind = useGesture({
     onDragStart: () => {
       setIsDragging(true);
@@ -83,15 +83,17 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       cameraUp.copy(mainCamera.up); // 相机的Y轴（上方）
       
       // 水平拖动：绕世界Y轴旋转
+      // 向右拖动ViewCube(+dx) -> 相机绕Y轴正向旋转 -> 视角向右转
       const yRotation = new THREE.Quaternion().setFromAxisAngle(
         new THREE.Vector3(0, 1, 0),
-        -dx * rotationSpeed  // 负号确保拖拽方向与旋转方向一致
+        dx * rotationSpeed  // 正向：拖动方向与视角旋转方向一致
       );
       
       // 垂直拖动：绕相机的右侧向量旋转
+      // 向下拖动ViewCube(+dy) -> 相机仰视 -> 视角向下转
       const xRotation = new THREE.Quaternion().setFromAxisAngle(
         cameraRight,
-        -dy * rotationSpeed  // 负号确保拖拽方向与旋转方向一致
+        dy * rotationSpeed  // 正向：拖动方向与视角旋转方向一致
       );
       
       // 组合旋转：先应用Y轴旋转，再应用X轴旋转
@@ -125,7 +127,9 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     }
   }, {
     drag: {
-      pointer: { capture: true }
+      pointer: { touch: true }, // 启用触摸支持，但不捕获
+      threshold: 3, // 降低阈值提高响应
+      filterTaps: true // 过滤点击事件
     }
   });
 
@@ -406,6 +410,23 @@ const AxisLabels: React.FC = () => {
 
 // ViewCube 外层容器组件 - 响应式布局优化
 export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => {
+  // 检测是否为移动设备
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth <= 768 || 'ontouchstart' in window;
+      setIsMobile(mobile);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // 移动端尺寸更大，提高可操作性
+  const cubeSize = isMobile ? 140 : 120;
+  
   return (
     <div 
       className="absolute pointer-events-auto"
@@ -413,16 +434,15 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
         // 固定在右上角，紧贴顶部和右侧边缘
         top: 'max(12px, env(safe-area-inset-top, 12px))',
         right: 'max(12px, env(safe-area-inset-right, 12px))',
-        // 响应式尺寸：移动端稍小，桌面端正常
-        width: 'clamp(100px, 20vw, 128px)',
-        height: 'clamp(100px, 20vw, 128px)',
-        // 触摸友好的最小尺寸
-        minWidth: '100px',
-        minHeight: '100px',
+        // 响应式尺寸：移动端更大，提高清晰度和可操作性
+        width: `${cubeSize}px`,
+        height: `${cubeSize}px`,
         cursor: 'grab', 
         userSelect: 'none',
         // 确保不被其他元素遮挡
         zIndex: 50,
+        // 触摸友好
+        touchAction: 'none',
       }}
     >
       <Canvas
