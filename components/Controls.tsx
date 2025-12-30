@@ -454,8 +454,8 @@ export const Controls: React.FC<ControlsProps> = ({ models, onUpdate, selectedId
         </div>
       )}
       
-      {/* 模型控制面板 */}
-      <div className="absolute bottom-2 left-2 right-2 flex flex-row gap-2 pointer-events-none sm:bottom-8 sm:left-4 sm:right-4 sm:gap-3">
+      {/* 模型控制面板 - 增加底部安全距离 */}
+      <div className="absolute bottom-4 left-2 right-2 flex flex-row gap-2 pointer-events-none sm:bottom-8 sm:left-4 sm:right-4 sm:gap-3" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {models.map((model) => (
           <div key={model.id} className="flex-1 pointer-events-auto">
             <ControlPanel 

@@ -96,6 +96,16 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   const [currentRotation, setCurrentRotation] = useState<[number, number, number]>(data.rotation);
   const [targetRotation, setTargetRotation] = useState<[number, number, number]>(data.rotation);
   
+  // 性能优化：使用 useRef 跟踪实时位置，避免状态更新延迟
+  const positionRef = useRef<[number, number, number]>(data.position);
+  const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingRef = useRef(false);
+  
+  // 同步 positionRef
+  useEffect(() => {
+    positionRef.current = data.position;
+  }, [data.position]);
+  
   // 克隆模型场景
   const fullClone = React.useMemo(() => fullModel.scene.clone(), [fullModel]);
   const rectangularClone = React.useMemo(() => rectangularPart ? rectangularPart.scene.clone() : null, [rectangularPart]);
@@ -106,16 +116,26 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     setTargetRotation(data.rotation);
   }, [data.rotation]);
   
-  // Smooth rotation animation using useFrame
+  // Smooth rotation animation using useFrame - 优化版
   useFrame((state, delta) => {
     if (currentRotation[0] !== targetRotation[0] || 
         currentRotation[1] !== targetRotation[1] || 
         currentRotation[2] !== targetRotation[2]) {
-      const easeFactor = 5 * delta;
+      // 动态缓动系数，根据帧率调整
+      const easeFactor = Math.min(10 * delta, 0.3); // 提高响应速度，最多30%
       const newX = currentRotation[0] + (targetRotation[0] - currentRotation[0]) * easeFactor;
       const newY = currentRotation[1] + (targetRotation[1] - currentRotation[1]) * easeFactor;
       const newZ = currentRotation[2] + (targetRotation[2] - currentRotation[2]) * easeFactor;
-      setCurrentRotation([newX, newY, newZ]);
+      
+      // 直接更新，减少不必要的重渲染
+      const threshold = 0.001;
+      if (Math.abs(targetRotation[0] - newX) > threshold ||
+          Math.abs(targetRotation[1] - newY) > threshold ||
+          Math.abs(targetRotation[2] - newZ) > threshold) {
+        setCurrentRotation([newX, newY, newZ]);
+      } else {
+        setCurrentRotation(targetRotation);
+      }
     }
   });
 
@@ -246,7 +266,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   // 移除 overlapClone 逻辑，避免重复渲染导致闪烁
   // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果
 
-  // Gesture Handling
+  // Gesture Handling - 全面优化版
   const bind = useGesture(
     {
       onDragStart: ({ event, touches }) => {
@@ -259,38 +279,59 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           }
           // 通知父组件开始拖动
           onDragStart?.();
+          // 重置拖动状态
+          isDraggingRef.current = true;
+          lastPointerPosRef.current = null;
         }
-        // Allow multi-finger events to propagate to OrbitControls for zoom/rotate
       },
-      onDrag: ({ movement: [x, y], touches, event, memo = { initialPos: data.position, initialRot: data.rotation } }) => {
+      onDrag: ({ xy: [x, y], touches, event, first }) => {
         // Only handle single finger drags for model movement
-        if (touches === 1) {
+        if (touches === 1 && data.selected) {
           event.stopPropagation();
           
-          if (!data.selected) return memo;
+          // 初始化指针位置
+          if (first || !lastPointerPosRef.current) {
+            lastPointerPosRef.current = { x, y };
+            return;
+          }
 
           // Ground boundaries (6x6 grid = -3 to 3 in X and Z)
           const GRID_SIZE = 6;
           const BOUNDARY_MIN = -GRID_SIZE / 2;
           const BOUNDARY_MAX = GRID_SIZE / 2;
           
-          // Mapping: Screen X -> World X, Screen Y -> World Z
-          const moveSpeed = 0.05; // Increased sensitivity for better dragging
+          // 计算指针移动增量（相对于上一帧）
+          const deltaX = x - lastPointerPosRef.current.x;
+          const deltaY = y - lastPointerPosRef.current.y;
+          
+          // 更新指针位置
+          lastPointerPosRef.current = { x, y };
+          
+          // 优化的移动速度，更高的灵敏度
+          const moveSpeed = 0.008; // 降低以提高精度
+          
+          // 使用 positionRef 获取最新位置，避免闭包问题
+          const currentPos = positionRef.current;
           
           // Calculate new position with boundary constraints
-          const newX = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, memo.initialPos[0] + (x * moveSpeed)));
-          const newZ = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, memo.initialPos[2] + (y * moveSpeed))); // Screen Y maps to World Z (direct mapping for intuitive dragging)
+          const newX = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[0] + (deltaX * moveSpeed)));
+          const newZ = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[2] + (deltaY * moveSpeed)));
 
-          // Keep Y position fixed to stay on ground
-          onUpdate(data.id, { position: [newX, memo.initialPos[1], newZ] });
+          // 更新位置
+          const newPosition: [number, number, number] = [newX, currentPos[1], newZ];
+          positionRef.current = newPosition;
+          
+          // 触发更新（使用 requestAnimationFrame 优化）
+          requestAnimationFrame(() => {
+            onUpdate(data.id, { position: newPosition });
+          });
         }
-        // Allow multi-finger events to propagate to OrbitControls for zoom/rotate
-        
-        return memo;
       },
       onDragEnd: ({ touches }) => {
         // 通知父组件拖动结束
         if (touches === 0) {
+          isDraggingRef.current = false;
+          lastPointerPosRef.current = null;
           onDragEnd?.();
         }
       },
@@ -302,8 +343,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     {
       drag: { 
         filterTaps: true,
-        threshold: 10,
-        // We do not need 'from' when using 'movement' as movement is always delta from start
+        threshold: 3, // 降低阈值提高响应
+        pointer: { touch: true }, // 优化触摸事件
       }
     }
   );

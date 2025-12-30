@@ -184,10 +184,17 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ model
         minPolarAngle={0} 
         maxPolarAngle={Math.PI} 
         enableDamping={true}
-        dampingFactor={0.05}
+        dampingFactor={0.08}
+        rotateSpeed={0.8}
+        zoomSpeed={0.8}
+        panSpeed={0.8}
         enablePan={!isModelDragging}
         enableZoom={!isModelDragging}
         enableRotate={!isModelDragging}
+        touches={{
+          ONE: THREE.TOUCH.ROTATE,
+          TWO: THREE.TOUCH.DOLLY_PAN
+        }}
       />
       
       <AutoFitCamera models={models} />
@@ -203,7 +210,7 @@ export const Scene: React.FC<SceneProps> = (props) => {
   );
   
   // 移动端降低 dpr 和阴影质量
-  const dpr = isMobile ? [1, 1.5] : [1, 2];
+  const dpr: [number, number] = isMobile ? [1, 1.5] : [1, 2];
   const shadowMapSize = isMobile ? 1024 : 2048;
   
   return (
@@ -213,6 +220,7 @@ export const Scene: React.FC<SceneProps> = (props) => {
       style={{ background: COLORS.background, touchAction: 'none' }}
       dpr={dpr}
       performance={{ min: 0.5 }} // 自动降级性能
+      frameloop="demand" // 仅在需要时重渲染
     >
       <SceneContent {...props} shadowMapSize={shadowMapSize} />
     </Canvas>

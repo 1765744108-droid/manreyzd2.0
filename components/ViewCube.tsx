@@ -1,6 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGesture } from '@use-gesture/react';
+import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
 
@@ -21,30 +22,31 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     if (cubeRef.current && mainCameraControlsRef.current && !dragStateRef.current.isDragging) {
       const mainCamera = mainCameraControlsRef.current.object;
       
-      // 修正：立方体应该与相机方向相同，不需要反向
-      // 使用相机的四元数直接设置立方体的旋转
-      cubeRef.current.quaternion.copy(mainCamera.quaternion);
+      // 关键修正：使用反转的相机四元数
+      // 当相机绕模型转动时，ViewCube看起来像是在原地自转展示对应面
+      cubeRef.current.quaternion.copy(mainCamera.quaternion).invert();
       
-      // 计算相机朝向，确定激活的面
-      const direction = new THREE.Vector3();
-      mainCamera.getWorldDirection(direction);
+      // 计算从相机位置指向目标点的方向向量（相机看向模型的方向）
+      const controls = mainCameraControlsRef.current;
+      const cameraToTarget = new THREE.Vector3();
+      cameraToTarget.subVectors(controls.target, mainCamera.position).normalize();
       
-      // 根据相机方向判断最接近的面
-      const absX = Math.abs(direction.x);
-      const absY = Math.abs(direction.y);
-      const absZ = Math.abs(direction.z);
+      // 根据相机到目标的方向判断最接近的面
+      const absX = Math.abs(cameraToTarget.x);
+      const absY = Math.abs(cameraToTarget.y);
+      const absZ = Math.abs(cameraToTarget.z);
       
       let newActiveFace = '前';
       
       if (absY > absX && absY > absZ) {
-        // Y轴主导
-        newActiveFace = direction.y > 0 ? '底' : '顶';  // 修正：反转顶底
+        // Y轴主导 - 从上方或下方观察
+        newActiveFace = cameraToTarget.y > 0 ? '顶' : '底';
       } else if (absX > absZ) {
-        // X轴主导
-        newActiveFace = direction.x > 0 ? '左' : '右';  // 修正：反转左右
+        // X轴主导 - 从左侧或右侧观察
+        newActiveFace = cameraToTarget.x > 0 ? '右' : '左';
       } else {
-        // Z轴主导
-        newActiveFace = direction.z > 0 ? '后' : '前';  // 修正：反转前后
+        // Z轴主导 - 从前方或后方观察
+        newActiveFace = cameraToTarget.z > 0 ? '前' : '后';
       }
       
       if (newActiveFace !== activeFace) {
@@ -111,9 +113,9 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       // 更新控制器
       controls.update();
       
-      // 立方体实时同步相机旋转
+      // 立方体实时同步相机旋转（使用反转四元数）
       if (cubeRef.current) {
-        cubeRef.current.quaternion.copy(mainCamera.quaternion);
+        cubeRef.current.quaternion.copy(mainCamera.quaternion).invert();
       }
     },
     onDragEnd: () => {
@@ -154,14 +156,15 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     return texture;
   };
 
-  // 6个面的配置 - 修正左右和上下方向
+  // 6个面的配置 - 正确的空间位置映射
+  // 注意：由于使用了 .invert()，面的位置需要对应模型的实际方向
   const faces = [
     { text: '前', color: '#e3f2fd', position: [0, 0, 0.51] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
     { text: '后', color: '#f3e5f5', position: [0, 0, -0.51] as [number, number, number], rotation: [0, Math.PI, 0] as [number, number, number] },
-    { text: '左', color: '#fff3e0', position: [0.51, 0, 0] as [number, number, number], rotation: [0, Math.PI / 2, 0] as [number, number, number] },  // 修正：原来是右
-    { text: '右', color: '#e8f5e9', position: [-0.51, 0, 0] as [number, number, number], rotation: [0, -Math.PI / 2, 0] as [number, number, number] },  // 修正：原来是左
-    { text: '底', color: '#fce4ec', position: [0, 0.51, 0] as [number, number, number], rotation: [-Math.PI / 2, 0, 0] as [number, number, number] },  // 修正：原来是顶
-    { text: '顶', color: '#f1f8e9', position: [0, -0.51, 0] as [number, number, number], rotation: [Math.PI / 2, 0, 0] as [number, number, number] },  // 修正：原来是底
+    { text: '右', color: '#e8f5e9', position: [0.51, 0, 0] as [number, number, number], rotation: [0, Math.PI / 2, 0] as [number, number, number] },
+    { text: '左', color: '#fff3e0', position: [-0.51, 0, 0] as [number, number, number], rotation: [0, -Math.PI / 2, 0] as [number, number, number] },
+    { text: '顶', color: '#f1f8e9', position: [0, 0.51, 0] as [number, number, number], rotation: [-Math.PI / 2, 0, 0] as [number, number, number] },
+    { text: '底', color: '#fce4ec', position: [0, -0.51, 0] as [number, number, number], rotation: [Math.PI / 2, 0, 0] as [number, number, number] },
   ];
 
   // 点击面切换视角
@@ -264,92 +267,178 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
         );
       })}
 
-      {/* XYZ 坐标轴 - 位于左前下交界处，整体绕Y轴逆时针旋转90度 */}
-      <group position={[-0.55, -0.55, 0.55]} rotation={[0, -Math.PI / 2, 0]}>
-        {/* X轴 - 红色 */}
-        <arrowHelper args={[new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 0), 0.6, 0xff0000, 0.15, 0.1]} />
-        <mesh position={[0.7, 0, 0]}>
-          <planeGeometry args={[0.2, 0.2]} />
-          <meshBasicMaterial>
-            <canvasTexture
-              attach="map"
-              image={(() => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 64;
-                canvas.height = 64;
-                const ctx = canvas.getContext('2d')!;
-                ctx.fillStyle = '#ff0000';
-                ctx.font = 'bold 48px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('X', 32, 32);
-                return canvas;
-              })()}
-            />
-          </meshBasicMaterial>
-        </mesh>
+      {/* XYZ 坐标轴标签 - 精确放置在立方体边缘 */}
+      <AxisLabels />
+    </group>
+  );
+};
 
-        {/* Y轴 - 绿色 */}
-        <arrowHelper args={[new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 0), 0.6, 0x00ff00, 0.15, 0.1]} />
-        <mesh position={[0, 0.7, 0]}>
-          <planeGeometry args={[0.2, 0.2]} />
-          <meshBasicMaterial>
-            <canvasTexture
-              attach="map"
-              image={(() => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 64;
-                canvas.height = 64;
-                const ctx = canvas.getContext('2d')!;
-                ctx.fillStyle = '#00ff00';
-                ctx.font = 'bold 48px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('Y', 32, 32);
-                return canvas;
-              })()}
-            />
-          </meshBasicMaterial>
-        </mesh>
+// 高对比度坐标轴标签组件 - 白色字母+深色描边
+const AxisLabels: React.FC = () => {
+  // 创建带描边的文字纹理
+  const createAxisTexture = useMemo(() => {
+    return (text: string, color: string) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d')!;
+      
+      // 透明背景
+      ctx.clearRect(0, 0, 128, 128);
+      
+      // 设置字体
+      ctx.font = 'bold 72px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // 深色描边 - 多层描边确保清晰
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 8;
+      ctx.strokeText(text, 64, 64);
+      
+      // 中间层描边
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 4;
+      ctx.strokeText(text, 64, 64);
+      
+      // 填充白色字母
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, 64, 64);
+      
+      // 添加轻微高光
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.3;
+      ctx.fillText(text, 64, 64);
+      
+      return new THREE.CanvasTexture(canvas);
+    };
+  }, []);
 
-        {/* Z轴 - 蓝色 */}
-        <arrowHelper args={[new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 0.6, 0x0000ff, 0.15, 0.1]} />
-        <mesh position={[0, 0, 0.7]}>
-          <planeGeometry args={[0.2, 0.2]} />
-          <meshBasicMaterial>
-            <canvasTexture
-              attach="map"
-              image={(() => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 64;
-                canvas.height = 64;
-                const ctx = canvas.getContext('2d')!;
-                ctx.fillStyle = '#0000ff';
-                ctx.font = 'bold 48px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('Z', 32, 32);
-                return canvas;
-              })()}
+  // X轴纹理 - 红色调
+  const xTexture = useMemo(() => createAxisTexture('X', '#ff4444'), [createAxisTexture]);
+  // Y轴纹理 - 绿色调
+  const yTexture = useMemo(() => createAxisTexture('Y', '#44ff44'), [createAxisTexture]);
+  // Z轴纹理 - 蓝色调
+  const zTexture = useMemo(() => createAxisTexture('Z', '#4444ff'), [createAxisTexture]);
+
+  return (
+    <group>
+      {/* X轴标签 - 放置在立方体"前面"底边中心位置 */}
+      <mesh position={[0, -0.72, 0.51]}>
+        <planeGeometry args={[0.35, 0.35]} />
+        <meshBasicMaterial 
+          map={xTexture} 
+          transparent 
+          opacity={1} 
+          depthTest={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* Y轴标签 - 放置在立方体顶部中心位置 */}
+      <mesh position={[0, 0.72, 0]}>
+        <planeGeometry args={[0.35, 0.35]} />
+        <meshBasicMaterial 
+          map={yTexture} 
+          transparent 
+          opacity={1} 
+          depthTest={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* Z轴标签 - 放置在立方体"左面"底边中心位置 */}
+      <mesh position={[-0.51, -0.72, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <planeGeometry args={[0.35, 0.35]} />
+        <meshBasicMaterial 
+          map={zTexture} 
+          transparent 
+          opacity={1} 
+          depthTest={false}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* 坐标轴指示线 - 从立方体角落延伸 */}
+      <group position={[-0.5, -0.5, 0.5]}>
+        {/* X轴线 - 红色，指向前面底边 */}
+        <line>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              array={new Float32Array([0, 0, 0, 0.5, 0, 0])}
+              count={2}
+              itemSize={3}
             />
-          </meshBasicMaterial>
-        </mesh>
+          </bufferGeometry>
+          <lineBasicMaterial color="#ff4444" linewidth={2} />
+        </line>
+        
+        {/* Y轴线 - 绿色，指向顶部 */}
+        <line>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              array={new Float32Array([0, 0, 0, 0, 1.0, 0])}
+              count={2}
+              itemSize={3}
+            />
+          </bufferGeometry>
+          <lineBasicMaterial color="#44ff44" linewidth={2} />
+        </line>
+        
+        {/* Z轴线 - 蓝色，指向左面 */}
+        <line>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              array={new Float32Array([0, 0, 0, 0, 0, -0.5])}
+              count={2}
+              itemSize={3}
+            />
+          </bufferGeometry>
+          <lineBasicMaterial color="#4444ff" linewidth={2} />
+        </line>
       </group>
     </group>
   );
 };
 
-// ViewCube 外层容器组件
+// ViewCube 外层容器组件 - 响应式布局优化
 export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => {
   return (
-    <div className="absolute top-20 right-4 w-32 h-32 pointer-events-auto" style={{ cursor: 'grab', userSelect: 'none' }}>
+    <div 
+      className="absolute pointer-events-auto"
+      style={{ 
+        // 固定在右上角，紧贴顶部和右侧边缘
+        top: 'max(12px, env(safe-area-inset-top, 12px))',
+        right: 'max(12px, env(safe-area-inset-right, 12px))',
+        // 响应式尺寸：移动端稍小，桌面端正常
+        width: 'clamp(100px, 20vw, 128px)',
+        height: 'clamp(100px, 20vw, 128px)',
+        // 触摸友好的最小尺寸
+        minWidth: '100px',
+        minHeight: '100px',
+        cursor: 'grab', 
+        userSelect: 'none',
+        // 确保不被其他元素遮挡
+        zIndex: 50,
+      }}
+    >
       <Canvas
         camera={{ position: [0, 0, 4], fov: 50 }}
-        style={{ background: 'rgba(255, 255, 255, 0.95)', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-        gl={{ preserveDrawingBuffer: true }}
+        style={{ 
+          // 不透明背景确保可视对比度
+          background: 'rgba(255, 255, 255, 1)', 
+          borderRadius: '10px', 
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1)',
+          border: '1px solid rgba(0,0,0,0.08)',
+        }}
+        gl={{ preserveDrawingBuffer: true, antialias: true }}
       >
-        <ambientLight intensity={0.8} />
-        <directionalLight position={[5, 5, 5]} intensity={0.5} />
+        <ambientLight intensity={0.9} />
+        <directionalLight position={[5, 5, 5]} intensity={0.6} />
+        <directionalLight position={[-3, -3, -3]} intensity={0.3} />
         <ViewCubeContent mainCameraControlsRef={mainCameraControlsRef} />
       </Canvas>
     </div>
