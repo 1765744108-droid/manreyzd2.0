@@ -62,9 +62,15 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     }
   });
 
-  // 拖拽手势处理 - 反向控制网页视角
+  // 拖拽手势处理 - 移动端优化
   const bind = useGesture({
-    onDragStart: () => {
+    onDragStart: ({ event }) => {
+      // 阻止默认行为和事件冒泡
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      
       setIsDragging(true);
       dragStateRef.current.isDragging = true;
       dragStateRef.current.dampingActive = false;
@@ -77,7 +83,11 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       document.body.style.cursor = 'grabbing';
     },
     onDrag: ({ delta: [dx, dy], event }) => {
-      event.stopPropagation();
+      // 阻止默认行为和事件冒泡
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
       
       if (!mainCameraControlsRef.current || !cubeRef.current) return;
       
@@ -135,7 +145,13 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
         cubeRef.current.quaternion.copy(mainCamera.quaternion).invert();
       }
     },
-    onDragEnd: () => {
+    onDragEnd: ({ event }) => {
+      // 阻止默认行为
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      
       setIsDragging(false);
       dragStateRef.current.isDragging = false;
       document.body.style.cursor = 'grab';
@@ -150,9 +166,17 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     }
   }, {
     drag: {
-      pointer: { touch: true }, // 启用触摸支持，但不捕获
-      threshold: 3, // 降低阈值提高响应
-      filterTaps: true // 过滤点击事件
+      // 移动端优化配置
+      from: () => [0, 0],
+      pointer: { 
+        touch: true,
+        capture: false,  // 不捕获事件，允许事件冒泡
+        lock: false      // 不锁定指针
+      },
+      threshold: 5,      // 适当提高阈值，避免与点击冲突
+      filterTaps: true,  // 过滤点击事件
+      preventDefault: true,  // 阻止默认行为
+      triggerAllEvents: true  // 触发所有事件
     }
   });
   
@@ -577,10 +601,16 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
         height: `${cubeSize}px`,
         cursor: 'grab', 
         userSelect: 'none',
+        WebkitUserSelect: 'none',
         // 确保不被其他元素遮挡
         zIndex: 50,
-        // 触摸友好
-        touchAction: 'none',
+        // 移动端触摸优化
+        touchAction: 'pan-y pan-x',  // 允许滚动但阻止缩放
+        WebkitTouchCallout: 'none',
+      }}
+      onTouchStart={(e) => {
+        // 阻止默认触摸行为（如页面滚动）
+        e.stopPropagation();
       }}
     >
       <Canvas
@@ -592,7 +622,27 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
           boxShadow: '0 4px 12px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1)',
           border: '1px solid rgba(0,0,0,0.08)',
         }}
-        gl={{ preserveDrawingBuffer: true, antialias: true }}
+        gl={{ 
+          preserveDrawingBuffer: true, 
+          antialias: true
+        }}
+        // 移动端触摸优化
+        events={(store) => ({
+          ...store,
+          enabled: true,
+          priority: 1,
+          compute: (event, state) => {
+            // 阻止默认触摸行为
+            if (event.type.startsWith('touch')) {
+              event.preventDefault();
+            }
+            state.pointer.set(
+              (event.offsetX / state.size.width) * 2 - 1,
+              -(event.offsetY / state.size.height) * 2 + 1
+            );
+            state.raycaster.setFromCamera(state.pointer, state.camera);
+          },
+        })}
       >
         <ambientLight intensity={0.9} />
         <directionalLight position={[5, 5, 5]} intensity={0.6} />
