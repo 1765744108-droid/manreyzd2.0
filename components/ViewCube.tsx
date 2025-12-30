@@ -15,7 +15,14 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
   const { camera, gl } = useThree();
   const [activeFace, setActiveFace] = useState<string>('前');
   const [isDragging, setIsDragging] = useState(false);
-  const dragStateRef = useRef({ isDragging: false, lastRotation: new THREE.Euler() });
+  const dragStateRef = useRef({ 
+    isDragging: false, 
+    lastRotation: new THREE.Euler(),
+    velocity: new THREE.Vector2(0, 0),
+    lastDelta: new THREE.Vector2(0, 0),
+    dampingActive: false
+  });
+  const animationRef = useRef<number | null>(null);
 
   // 实时同步主相机的旋转并计算当前激活的面
   useFrame(() => {
@@ -55,11 +62,18 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     }
   });
 
-  // 拖拽手势处理 - 移动端优化
+  // 拖拽手势处理 - 反向控制网页视角
   const bind = useGesture({
     onDragStart: () => {
       setIsDragging(true);
       dragStateRef.current.isDragging = true;
+      dragStateRef.current.dampingActive = false;
+      dragStateRef.current.velocity.set(0, 0);
+      // 取消惯性动画
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
       document.body.style.cursor = 'grabbing';
     },
     onDrag: ({ delta: [dx, dy], event }) => {
@@ -73,14 +87,15 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       // 旋转灵敏度
       const rotationSpeed = 0.01;
       
+      // 记录速度用于惯性滚动
+      dragStateRef.current.lastDelta.set(dx, dy);
+      
       // 获取当前相机的世界坐标系向量
-      const cameraUp = new THREE.Vector3();
       const cameraRight = new THREE.Vector3();
       
       // 计算相机的右侧向量（用于垂直拖拽旋转）
       mainCamera.getWorldDirection(new THREE.Vector3());
       cameraRight.setFromMatrixColumn(mainCamera.matrix, 0); // 相机的X轴（右侧）
-      cameraUp.copy(mainCamera.up); // 相机的Y轴（上方）
       
       // 水平拖动：绕世界Y轴旋转
       // 向右拖动ViewCube(+dx) -> 相机绕Y轴正向旋转 -> 视角向右转
@@ -124,6 +139,14 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       setIsDragging(false);
       dragStateRef.current.isDragging = false;
       document.body.style.cursor = 'grab';
+      
+      // 启动惯性阻尼动画
+      const lastDelta = dragStateRef.current.lastDelta;
+      if (Math.abs(lastDelta.x) > 0.5 || Math.abs(lastDelta.y) > 0.5) {
+        dragStateRef.current.velocity.copy(lastDelta);
+        dragStateRef.current.dampingActive = true;
+        startInertialDamping();
+      }
     }
   }, {
     drag: {
@@ -132,6 +155,78 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       filterTaps: true // 过滤点击事件
     }
   });
+  
+  // 惯性阻尼系统
+  const startInertialDamping = () => {
+    if (!mainCameraControlsRef.current || !cubeRef.current) return;
+    
+    const controls = mainCameraControlsRef.current;
+    const mainCamera = controls.object;
+    const rotationSpeed = 0.01;
+    const dampingFactor = 0.92; // 阻尼系数，越接近1滚动越久
+    const minVelocity = 0.05; // 最小速度阈值
+    
+    const animate = () => {
+      if (!dragStateRef.current.dampingActive) return;
+      
+      const velocity = dragStateRef.current.velocity;
+      
+      // 速度衰减
+      velocity.multiplyScalar(dampingFactor);
+      
+      // 检查是否停止
+      if (Math.abs(velocity.x) < minVelocity && Math.abs(velocity.y) < minVelocity) {
+        dragStateRef.current.dampingActive = false;
+        dragStateRef.current.velocity.set(0, 0);
+        return;
+      }
+      
+      // 应用惯性旋转
+      const cameraRight = new THREE.Vector3();
+      mainCamera.getWorldDirection(new THREE.Vector3());
+      cameraRight.setFromMatrixColumn(mainCamera.matrix, 0);
+      
+      const yRotation = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        velocity.x * rotationSpeed
+      );
+      
+      const xRotation = new THREE.Quaternion().setFromAxisAngle(
+        cameraRight,
+        velocity.y * rotationSpeed
+      );
+      
+      const combinedRotation = new THREE.Quaternion();
+      combinedRotation.multiplyQuaternions(xRotation, yRotation);
+      
+      mainCamera.quaternion.multiplyQuaternions(combinedRotation, mainCamera.quaternion);
+      mainCamera.quaternion.normalize();
+      
+      const distance = mainCamera.position.distanceTo(controls.target);
+      const newDirection = new THREE.Vector3();
+      mainCamera.getWorldDirection(newDirection);
+      mainCamera.position.copy(controls.target).sub(newDirection.multiplyScalar(distance));
+      
+      controls.update();
+      
+      if (cubeRef.current) {
+        cubeRef.current.quaternion.copy(mainCamera.quaternion).invert();
+      }
+      
+      animationRef.current = requestAnimationFrame(animate);
+    };
+    
+    animationRef.current = requestAnimationFrame(animate);
+  };
+  
+  // 组件卸载时清理动画
+  useEffect(() => {
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, []);
 
   // 立方体面的文字材质
   const createTextTexture = (text: string, bgColor: string, isActive: boolean) => {
@@ -171,17 +266,23 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     { text: '底', color: '#fce4ec', position: [0, -0.51, 0] as [number, number, number], rotation: [Math.PI / 2, 0, 0] as [number, number, number] },
   ];
 
-  // 点击面切换视角
-  const handleFaceClick = (faceName: string) => {
+  // 点击面或边角切换视角 - 使用Slerp球形插值
+  const handleFaceClick = (faceName: string, event?: any) => {
     if (!mainCameraControlsRef.current) return;
-
+      
+    // 阻止事件冒泡
+    if (event) {
+      event.stopPropagation();
+    }
+  
     const controls = mainCameraControlsRef.current;
     const mainCamera = controls.object;
-    const distance = 12;
+    const currentDistance = mainCamera.position.distanceTo(controls.target);
+    const distance = currentDistance > 1 ? currentDistance : 12;
     const target = new THREE.Vector3(0, 0.5, 0);
-
+  
     let newPosition = new THREE.Vector3();
-
+  
     switch (faceName) {
       case '前':
         newPosition.set(0, 5, distance);
@@ -201,32 +302,69 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       case '底':
         newPosition.set(0, -distance, 0);
         break;
+      // 边视角
+      case '右前':
+        newPosition.set(distance * 0.707, 5, distance * 0.707);
+        break;
+      case '左前':
+        newPosition.set(-distance * 0.707, 5, distance * 0.707);
+        break;
+      case '右后':
+        newPosition.set(distance * 0.707, 5, -distance * 0.707);
+        break;
+      case '左后':
+        newPosition.set(-distance * 0.707, 5, -distance * 0.707);
+        break;
+      // 角视角
+      case '右前顶':
+        newPosition.set(distance * 0.577, distance * 0.577, distance * 0.577);
+        break;
+      case '左前顶':
+        newPosition.set(-distance * 0.577, distance * 0.577, distance * 0.577);
+        break;
+      case '右后顶':
+        newPosition.set(distance * 0.577, distance * 0.577, -distance * 0.577);
+        break;
+      case '左后顶':
+        newPosition.set(-distance * 0.577, distance * 0.577, -distance * 0.577);
+        break;
     }
-
-    // 平滑过渡动画
+  
+    // 使用Slerp球形插值进行平滑过渡
     const startPos = mainCamera.position.clone();
+    const startQuat = mainCamera.quaternion.clone();
+      
+    // 计算目标四元数
+    const targetQuat = new THREE.Quaternion();
+    const tempCamera = mainCamera.clone();
+    tempCamera.position.copy(newPosition);
+    tempCamera.lookAt(target);
+    targetQuat.copy(tempCamera.quaternion);
+      
     const startTime = Date.now();
-    const duration = 500; // 500ms
-
+    const duration = 400; // 400ms优化响应速度
+  
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
-      // 使用 easeInOutCubic 缓动函数
-      const eased = progress < 0.5
-        ? 4 * progress * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-
+        
+      // 使用easeOutCubic缓动函数，更自然的减速效果
+      const eased = 1 - Math.pow(1 - progress, 3);
+  
+      // 位置插值
       mainCamera.position.lerpVectors(startPos, newPosition, eased);
-      mainCamera.lookAt(target);
+        
+      // 四元数球形插值（Slerp）
+      mainCamera.quaternion.slerpQuaternions(startQuat, targetQuat, eased);
+        
       controls.target.copy(target);
       controls.update();
-
+  
       if (progress < 1) {
         requestAnimationFrame(animate);
       }
     };
-
+  
     animate();
   };
 
