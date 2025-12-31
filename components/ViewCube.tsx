@@ -587,16 +587,17 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
   }, []);
   
   // 移动端尺寸更大，提高可操作性
-  const cubeSize = isMobile ? 140 : 120;
+  // 容器尺寸缩小，但保持3D立方体视觉大小不变
+  const cubeSize = isMobile ? 100 : 90;  // 容器尺寸缩小约30%
   
   return (
     <div 
       className="absolute pointer-events-auto"
       style={{ 
         // 固定在右上角，紧贴顶部和右侧边缘
-        top: 'max(12px, env(safe-area-inset-top, 12px))',
-        right: 'max(12px, env(safe-area-inset-right, 12px))',
-        // 响应式尺寸：移动端更大，提高清晰度和可操作性
+        top: 'max(8px, env(safe-area-inset-top, 8px))',  // 顶部边距缩小
+        right: 'max(8px, env(safe-area-inset-right, 8px))',  // 右侧边距缩小
+        // 响应式尺寸：容器缩小但保持立方体视觉比例
         width: `${cubeSize}px`,
         height: `${cubeSize}px`,
         cursor: 'grab', 
@@ -614,12 +615,15 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       }}
     >
       <Canvas
-        camera={{ position: [0, 0, 4], fov: 50 }}
+        camera={{ 
+          position: [0, 0, 3.2],  // 相机拉近，使立方体在缩小容器中保持视觉大小
+          fov: 50 
+        }}
         style={{ 
           // 不透明背景确保可视对比度
           background: 'rgba(255, 255, 255, 1)', 
-          borderRadius: '10px', 
-          boxShadow: '0 4px 12px rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.1)',
+          borderRadius: '8px',  // 圆角缩小
+          boxShadow: '0 3px 10px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.08)',  // 阴影略微缩小
           border: '1px solid rgba(0,0,0,0.08)',
         }}
         gl={{ 
