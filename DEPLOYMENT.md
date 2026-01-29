@@ -6,49 +6,54 @@
 
 ### 自动部署（推荐）
 
-1. 运行部署脚本：
+1. 运行部署脚本（脚本将自动连接到 manreyzd2.0 仓库）：
    ```bash
    ./deploy.sh
    ```
 
 2. 部署完成后，您的应用将在以下地址可用：
-   https://1765744108-droid.github.io/mryzdyt/
+   https://1765744108-droid.github.io/manreyzd2.0/
 
 ### 手动部署
 
 如果您无法运行脚本，请按照以下步骤手动部署：
 
-1. 确保所有更改都已提交：
+1. 确保远程仓库设置正确：
+   ```bash
+   git remote set-url origin https://github.com/1765744108-droid/manreyzd2.0.git
+   ```
+
+2. 确保所有更改都已提交：
    ```bash
    git add .
    git commit -m "chore: 更新项目优化"
    git push origin main
    ```
 
-2. 构建项目：
+3. 构建项目：
    ```bash
    npm run build
    ```
 
-3. 创建并切换到 gh-pages 分支：
+4. 创建并切换到 gh-pages 分支：
    ```bash
    git checkout -b gh-pages
    ```
 
-4. 清空分支内容并复制构建文件：
+5. 清空分支内容并复制构建文件：
    ```bash
    git rm -rf .
    cp -r dist/* .
    ```
 
-5. 提交并推送 gh-pages 分支：
+6. 提交并推送 gh-pages 分支：
    ```bash
    git add .
    git commit -m "chore: 部署到 gh-pages"
    git push origin gh-pages
    ```
 
-6. 切换回 main 分支：
+7. 切换回 main 分支：
    ```bash
    git checkout main
    ```
@@ -77,4 +82,4 @@
 ### 访问您的应用
 
 部署完成后，您的 3D 模型查看器将在以下地址可用：
-https://1765744108-droid.github.io/mryzdyt/
+https://1765744108-droid.github.io/manreyzd2.0/
