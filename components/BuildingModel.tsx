@@ -1,11 +1,21 @@
 import React, { useRef, useState, useEffect, Suspense, useMemo, useCallback } from 'react';
 import { useThree, useFrame, ThreeEvent } from '@react-three/fiber';
-import { useGLTF, Outlines, OrbitControls } from '@react-three/drei';
+import { useGLTF, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { ModelData } from '../types';
 import { COLORS } from '../constants';
-import { modelCache } from '../utils/modelCache';
 import { OverlapInfo } from './Scene.tsx';
+
+// 预加载模型 - 提升首次加载速度
+const MODEL_URLS = [
+  '/远征队 完整 现实.glb',
+  '/远征队 矩形整体 现实.glb',
+  '/远征队 塔仓 现实.glb',
+  '/远征队 完整 锚定.glb',
+  '/远征队 矩形整体 锚定.glb',
+  '/远征队 塔仓 锚定.glb',
+];
+MODEL_URLS.forEach(url => useGLTF.preload(url));
 
 // Error boundary component for handling model loading errors
 class ErrorBoundary extends React.Component<{ children: React.ReactNode; fallback: React.ReactNode }, { hasError: boolean }> {
@@ -64,30 +74,30 @@ interface BuildingModelProps {
   onDragEnd?: () => void;
 }
 
-// Custom hook for caching GLTF models
-const useCachedGLTF = (url: string) => {
-  // Try to get the model from cache first
-  const cachedModel = useMemo(() => modelCache.get(url), [url]);
-  
-  // Use useGLTF to load the model if not in cache
-  const { scene: loadedScene, ...rest } = useGLTF(url);
-  
-  // Cache the loaded model
-  useEffect(() => {
-    if (loadedScene && !cachedModel) {
-      modelCache.set(url, { scene: loadedScene, ...rest } as any);
-    }
-  }, [url, loadedScene, cachedModel]);
-  
-  // Return the cached model if available, otherwise the loaded model
-  return cachedModel ? cachedModel : { scene: loadedScene, ...rest };
+// 深度比较 partialVisibility 对象
+const arePartialVisibilityEqual = (
+  prev?: { rectangularParts: boolean; otherParts: boolean },
+  next?: { rectangularParts: boolean; otherParts: boolean }
+): boolean => {
+  if (prev === next) return true;
+  if (!prev || !next) return false;
+  return prev.rectangularParts === next.rectangularParts && 
+         prev.otherParts === next.otherParts;
+};
+
+// 比较位置/旋转/缩放数组
+const areArraysEqual = (
+  prev: [number, number, number],
+  next: [number, number, number]
+): boolean => {
+  return prev[0] === next[0] && prev[1] === next[1] && prev[2] === next[2];
 };
 
 const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, onUpdate, overlapInfo, onDragStart, onDragEnd }) => {
   // 获取相机用于视角感知拖拽
   const { camera } = useThree();
   
-  // 加载完整模型作为参考
+  // 加载完整模型作为参考（仅用于计算边界框）
   const fullModel = useGLTF(data.url);
   // 加载分离的模型文件
   const rectangularPart = data.rectangularPartUrl ? useGLTF(data.rectangularPartUrl) : null;
@@ -103,15 +113,34 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
   const isDraggingRef = useRef(false);
   
+  // 保存全局事件处理器引用，用于清理
+  const globalHandlersRef = useRef<{
+    move: ((e: PointerEvent) => void) | null;
+    up: (() => void) | null;
+  }>({ move: null, up: null });
+  
   // 同步 positionRef
   useEffect(() => {
     positionRef.current = data.position;
   }, [data.position]);
   
-  // 克隆模型场景
-  const fullClone = React.useMemo(() => fullModel.scene.clone(), [fullModel]);
-  const rectangularClone = React.useMemo(() => rectangularPart ? rectangularPart.scene.clone() : null, [rectangularPart]);
-  const otherClone = React.useMemo(() => otherPart ? otherPart.scene.clone() : null, [otherPart]);
+  // 克隆模型场景 - 只克隆需要渲染的部分
+  const rectangularClone = useMemo(() => rectangularPart ? rectangularPart.scene.clone() : null, [rectangularPart]);
+  const otherClone = useMemo(() => otherPart ? otherPart.scene.clone() : null, [otherPart]);
+  
+  // 组件卸载时清理全局事件监听器，防止内存泄漏
+  useEffect(() => {
+    return () => {
+      isDraggingRef.current = false;
+      if (globalHandlersRef.current.move) {
+        window.removeEventListener('pointermove', globalHandlersRef.current.move);
+      }
+      if (globalHandlersRef.current.up) {
+        window.removeEventListener('pointerup', globalHandlersRef.current.up);
+        window.removeEventListener('pointercancel', globalHandlersRef.current.up);
+      }
+    };
+  }, []);
   
   // Update target rotation when data.rotation changes
   useEffect(() => {
@@ -149,11 +178,14 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
 
   // 使用完整模型计算偏移量，并计算各部分的相对位置
   useEffect(() => {
-    if (!fullClone || !rectangularClone || !otherClone) return;
+    if (!fullModel.scene || !rectangularClone || !otherClone) return;
+    
+    // 临时克隆完整模型用于计算边界框（不保存到状态）
+    const tempFullClone = fullModel.scene.clone();
     
     // 重置位置以计算准确的边界框
-    fullClone.position.set(0, 0, 0);
-    fullClone.updateMatrixWorld(true);
+    tempFullClone.position.set(0, 0, 0);
+    tempFullClone.updateMatrixWorld(true);
     
     rectangularClone.position.set(0, 0, 0);
     rectangularClone.updateMatrixWorld(true);
@@ -162,7 +194,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     otherClone.updateMatrixWorld(true);
     
     // 计算完整模型的边界框
-    const fullBox = new THREE.Box3().setFromObject(fullClone);
+    const fullBox = new THREE.Box3().setFromObject(tempFullClone);
     const minY = fullBox.min.y;
     
     // 设置模型偏移，使底部贴合地面（Y=0）
@@ -200,70 +232,80 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     );
     setRotationCenter(rectCenter);
     
-    fullClone.updateMatrixWorld(true);
-  }, [fullClone, rectangularClone, otherClone]);
+    // 清理临时克隆
+    tempFullClone.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry?.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else {
+          child.material?.dispose();
+        }
+      }
+    });
+  }, [fullModel.scene, rectangularClone, otherClone]);
+
+  // 缓存材质设置回调
+  const setupMaterials = useCallback((clone: THREE.Group | null, _isRectangular: boolean) => {
+    if (!clone) return;
+    
+    const baseOpacity = data.opacity ?? 1.0;
+    const isWireframe = data.wireframe ?? false;
+    
+    clone.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+
+        if (child.material) {
+          const materials = Array.isArray(child.material) ? child.material : [child.material];
+          
+          materials.forEach((mat) => {
+            if (data.id === 'model-1') {
+              // 模型1：蓝色调
+              mat.transparent = baseOpacity < 1.0;
+              mat.opacity = baseOpacity;
+              mat.depthWrite = true;
+              mat.depthTest = true;
+              mat.polygonOffset = true;
+              mat.polygonOffsetFactor = 1;
+              mat.polygonOffsetUnits = 1;
+              child.renderOrder = 1;
+              mat.color.set('#1781b5');
+            } else if (data.id === 'model-2') {
+              // 模型2：红色调
+              mat.transparent = baseOpacity < 1.0;
+              mat.opacity = baseOpacity * 0.85; // 稍微更透明
+              mat.depthWrite = baseOpacity >= 1.0;
+              mat.depthTest = true;
+              mat.polygonOffset = true;
+              mat.polygonOffsetFactor = -1;
+              mat.polygonOffsetUnits = -1;
+              child.renderOrder = 2;
+              mat.color.set('#ee3f4d');
+            } else {
+              mat.transparent = baseOpacity < 1.0;
+              mat.opacity = baseOpacity;
+              mat.color.set(0xffffff);
+            }
+            
+            // 线框模式
+            mat.wireframe = isWireframe;
+            
+            mat.side = THREE.FrontSide;
+            mat.blending = THREE.NormalBlending;
+            mat.needsUpdate = true;
+          });
+        }
+      }
+    });
+  }, [data.id, data.opacity, data.wireframe]);
 
   // 设置材质属性
   useEffect(() => {
-    const setupMaterials = (clone: THREE.Group | null, isRectangular: boolean) => {
-      if (!clone) return;
-      
-      clone.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-
-          if (child.material) {
-            const materials = Array.isArray(child.material) ? child.material : [child.material];
-            
-            materials.forEach((mat) => {
-              // 基础设置
-              const baseOpacity = data.opacity ?? 1.0;
-              const isWireframe = data.wireframe ?? false;
-              
-              if (data.id === 'model-1') {
-                // 模型1：蓝色调
-                mat.transparent = baseOpacity < 1.0;
-                mat.opacity = baseOpacity;
-                mat.depthWrite = true;
-                mat.depthTest = true;
-                mat.polygonOffset = true;
-                mat.polygonOffsetFactor = 1;
-                mat.polygonOffsetUnits = 1;
-                child.renderOrder = 1;
-                mat.color.set('#1781b5');
-              } else if (data.id === 'model-2') {
-                // 模型2：红色调
-                mat.transparent = baseOpacity < 1.0;
-                mat.opacity = baseOpacity * 0.85; // 稍微更透明
-                mat.depthWrite = baseOpacity >= 1.0;
-                mat.depthTest = true;
-                mat.polygonOffset = true;
-                mat.polygonOffsetFactor = -1;
-                mat.polygonOffsetUnits = -1;
-                child.renderOrder = 2;
-                mat.color.set('#ee3f4d');
-              } else {
-                mat.transparent = baseOpacity < 1.0;
-                mat.opacity = baseOpacity;
-                mat.color.set(0xffffff);
-              }
-              
-              // 线框模式
-              mat.wireframe = isWireframe;
-              
-              mat.side = THREE.FrontSide;
-              mat.blending = THREE.NormalBlending;
-              mat.needsUpdate = true;
-            });
-          }
-        }
-      });
-    };
-
     setupMaterials(rectangularClone, true);
     setupMaterials(otherClone, false);
-  }, [rectangularClone, otherClone, data.id, data.opacity, data.wireframe]);
+  }, [rectangularClone, otherClone, setupMaterials]);
 
   // 移除 overlapClone 逻辑，避免重复渲染导致闪烁
   // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果
@@ -367,6 +409,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     const handleGlobalUp = () => {
       isDraggingRef.current = false;
       lastPointerPosRef.current = null;
+      globalHandlersRef.current = { move: null, up: null };
       onDragEnd?.();
       
       // 移除全局事件监听器
@@ -374,6 +417,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       window.removeEventListener('pointerup', handleGlobalUp);
       window.removeEventListener('pointercancel', handleGlobalUp);
     };
+    
+    // 保存事件处理器引用，用于组件卸载时清理
+    globalHandlersRef.current = { move: handleGlobalMove, up: handleGlobalUp };
     
     // 添加全局事件监听器 - 使用 passive 提高性能
     window.addEventListener('pointermove', handleGlobalMove, { passive: true });
@@ -466,11 +512,34 @@ const BuildingModel: React.FC<BuildingModelProps> = React.memo((props) => {
     </Suspense>
   );
 }, (prevProps, nextProps) => {
-  // Only re-render if data has changed
-  // We need to ensure visible property changes trigger re-render
-  const dataChanged = JSON.stringify(prevProps.data) === JSON.stringify(nextProps.data);
-  const handlersChanged = prevProps.onSelect === nextProps.onSelect && prevProps.onUpdate === nextProps.onUpdate;
-  return dataChanged && handlersChanged;
+  // 使用高效的浅比较替代 JSON.stringify
+  const pd = prevProps.data;
+  const nd = nextProps.data;
+  
+  const dataEqual = 
+    areArraysEqual(pd.position, nd.position) &&
+    areArraysEqual(pd.rotation, nd.rotation) &&
+    areArraysEqual(pd.scale, nd.scale) &&
+    pd.visible === nd.visible &&
+    pd.selected === nd.selected &&
+    pd.opacity === nd.opacity &&
+    pd.wireframe === nd.wireframe &&
+    pd.id === nd.id &&
+    pd.url === nd.url &&
+    arePartialVisibilityEqual(pd.partialVisibility, nd.partialVisibility);
+  
+  const handlersEqual = 
+    prevProps.onSelect === nextProps.onSelect && 
+    prevProps.onUpdate === nextProps.onUpdate &&
+    prevProps.onDragStart === nextProps.onDragStart &&
+    prevProps.onDragEnd === nextProps.onDragEnd;
+  
+  // 重叠信息比较
+  const overlapEqual = 
+    prevProps.overlapInfo.isOverlapping === nextProps.overlapInfo.isOverlapping &&
+    prevProps.overlapInfo.overlappingWith.length === nextProps.overlapInfo.overlappingWith.length;
+  
+  return dataEqual && handlersEqual && overlapEqual;
 });
 
 export default BuildingModel;

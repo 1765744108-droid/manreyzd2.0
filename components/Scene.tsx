@@ -1,9 +1,8 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, ContactShadows } from '@react-three/drei';
+import { OrbitControls, ContactShadows, Html, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import BuildingModel from './BuildingModel.tsx';
-import PerformanceMonitor from './PerformanceMonitor.tsx';
 import { ModelData } from '../types';
 import { COLORS, INITIAL_CAMERA_POSITION } from '../constants';
 import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
@@ -13,6 +12,28 @@ export interface OverlapInfo {
   isOverlapping: boolean;
   overlappingWith: string[];
 }
+// 加载进度显示组件
+const Loader: React.FC = () => {
+  const { progress, active } = useProgress();
+  
+  if (!active) return null;
+  
+  return (
+    <Html center>
+      <div className="flex flex-col items-center justify-center p-4 bg-white/90 backdrop-blur rounded-lg shadow-lg">
+        <div className="w-48 h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
+          <div 
+            className="h-full bg-blue-500 transition-all duration-300 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <span className="text-sm text-gray-600 font-medium">
+          加载中... {progress.toFixed(0)}%
+        </span>
+      </div>
+    </Html>
+  );
+};
 
 
 interface SceneProps {
@@ -56,11 +77,10 @@ const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
             camera.position.set(0, 8, 10);
             camera.lookAt(0, 0.5, 0);
             
-            if (controls) {
-                // @ts-ignore
-                controls.target.set(0, 0.5, 0);
-                // @ts-ignore
-                controls.update();
+            if (controls && 'target' in controls) {
+                const orbitControls = controls as OrbitControlsType;
+                orbitControls.target.set(0, 0.5, 0);
+                orbitControls.update();
             }
             
             isFirstRun.current = false;
@@ -71,39 +91,22 @@ const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
 }
 
 const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ models, onSelectModel, onUpdateModel, cameraControlsRef, shadowMapSize = 2048 }) => {
-  const [overlapInfo, setOverlapInfo] = useState<Record<string, OverlapInfo>>({});
   const [isModelDragging, setIsModelDragging] = useState(false);
   const controlsRef = useRef<OrbitControlsType>(null);
   
-  // 将 controls ref 暴露给父组件
-  useEffect(() => {
-    if (cameraControlsRef && controlsRef.current) {
-      cameraControlsRef.current = controlsRef.current;
-    }
-  }, [cameraControlsRef]);
-  
-  // 处理模型拖动状态变化
-  const handleDragStart = useCallback(() => {
-    setIsModelDragging(true);
-  }, []);
-  
-  const handleDragEnd = useCallback(() => {
-    setIsModelDragging(false);
-  }, []);
-
-  // Detect overlaps between models
-  useEffect(() => {
-    if (models.length < 2) return;
-
-    const newOverlapInfo: Record<string, OverlapInfo> = {};
-
+  // 使用 useMemo 缓存重叠检测计算
+  const overlapInfo = useMemo(() => {
+    const result: Record<string, OverlapInfo> = {};
+    
     // Initialize overlap info for each model
     models.forEach(model => {
-      newOverlapInfo[model.id] = {
+      result[model.id] = {
         isOverlapping: false,
         overlappingWith: []
       };
     });
+    
+    if (models.length < 2) return result;
 
     // Check all pairs of models for overlap
     for (let i = 0; i < models.length; i++) {
@@ -130,17 +133,36 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ model
         // Check if boxes intersect
         if (box1.intersectsBox(box2)) {
           // Update overlap info for both models
-          newOverlapInfo[model1.id].isOverlapping = true;
-          newOverlapInfo[model1.id].overlappingWith.push(model2.id);
+          result[model1.id].isOverlapping = true;
+          result[model1.id].overlappingWith.push(model2.id);
 
-          newOverlapInfo[model2.id].isOverlapping = true;
-          newOverlapInfo[model2.id].overlappingWith.push(model1.id);
+          result[model2.id].isOverlapping = true;
+          result[model2.id].overlappingWith.push(model1.id);
         }
       }
     }
 
-    setOverlapInfo(newOverlapInfo);
-  }, [models]);
+    return result;
+  }, [
+    // 只在位置和缩放变化时重新计算
+    models.map(m => `${m.id}:${m.position.join(',')}:${m.scale.join(',')}`).join('|')
+  ]);
+  
+  // 将 controls ref 暴露给父组件
+  useEffect(() => {
+    if (cameraControlsRef && controlsRef.current) {
+      cameraControlsRef.current = controlsRef.current;
+    }
+  }, [cameraControlsRef]);
+  
+  // 处理模型拖动状态变化
+  const handleDragStart = useCallback(() => {
+    setIsModelDragging(true);
+  }, []);
+  
+  const handleDragEnd = useCallback(() => {
+    setIsModelDragging(false);
+  }, []);
 
   return (
     <>
@@ -164,6 +186,9 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ model
       <Ground onDeselect={() => onSelectModel(null)} />
       
       <ContactShadows resolution={1024} scale={50} blur={2} opacity={0.5} far={10} color="#000000" />
+      
+      {/* 加载进度显示 */}
+      <Loader />
 
       {models.map((model) => (
         <BuildingModel 
