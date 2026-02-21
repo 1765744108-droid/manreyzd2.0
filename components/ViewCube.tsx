@@ -252,25 +252,25 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     };
   }, []);
 
-  // 立方体面的文字材质
+  // 立方体面的文字材质 - Shape3D风格：白色立方体+黑色粗体文字
   const createTextTexture = (text: string, bgColor: string, isActive: boolean) => {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
     const ctx = canvas.getContext('2d')!;
 
-    // 背景 - 激活时使用高亮色
-    ctx.fillStyle = isActive ? '#4f46e5' : bgColor;
+    // 背景 - Shape3D风格：纯白色或浅蓝色激活态
+    ctx.fillStyle = isActive ? '#e3f2fd' : '#ffffff';
     ctx.fillRect(0, 0, 256, 256);
 
-    // 边框 - 激活时加粗
-    ctx.strokeStyle = isActive ? '#fff' : '#333';
-    ctx.lineWidth = isActive ? 8 : 4;
-    ctx.strokeRect(2, 2, 252, 252);
+    // 边框 - Shape3D风格：细线条边框
+    ctx.strokeStyle = isActive ? '#1976d2' : '#cccccc';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, 256, 256);
 
-    // 文字 - 激活时使用白色
-    ctx.fillStyle = isActive ? '#fff' : '#333';
-    ctx.font = 'bold 80px Arial';
+    // 文字 - Shape3D风格：黑色粗体汉字
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 100px "Microsoft YaHei", "PingFang SC", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, 128, 128);
@@ -279,15 +279,14 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     return texture;
   };
 
-  // 6个面的配置 - 正确的空间位置映射
-  // 注意：由于使用了 .invert()，面的位置需要对应模型的实际方向
+  // 6个面的配置 - Shape3D风格：纯白色底色
   const faces = [
-    { text: '前', color: '#e3f2fd', position: [0, 0, 0.51] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
-    { text: '后', color: '#f3e5f5', position: [0, 0, -0.51] as [number, number, number], rotation: [0, Math.PI, 0] as [number, number, number] },
-    { text: '右', color: '#e8f5e9', position: [0.51, 0, 0] as [number, number, number], rotation: [0, Math.PI / 2, 0] as [number, number, number] },
-    { text: '左', color: '#fff3e0', position: [-0.51, 0, 0] as [number, number, number], rotation: [0, -Math.PI / 2, 0] as [number, number, number] },
-    { text: '顶', color: '#f1f8e9', position: [0, 0.51, 0] as [number, number, number], rotation: [-Math.PI / 2, 0, 0] as [number, number, number] },
-    { text: '底', color: '#fce4ec', position: [0, -0.51, 0] as [number, number, number], rotation: [Math.PI / 2, 0, 0] as [number, number, number] },
+    { text: '前', color: '#ffffff', position: [0, 0, 0.51] as [number, number, number], rotation: [0, 0, 0] as [number, number, number] },
+    { text: '后', color: '#ffffff', position: [0, 0, -0.51] as [number, number, number], rotation: [0, Math.PI, 0] as [number, number, number] },
+    { text: '右', color: '#ffffff', position: [0.51, 0, 0] as [number, number, number], rotation: [0, Math.PI / 2, 0] as [number, number, number] },
+    { text: '左', color: '#ffffff', position: [-0.51, 0, 0] as [number, number, number], rotation: [0, -Math.PI / 2, 0] as [number, number, number] },
+    { text: '顶', color: '#ffffff', position: [0, 0.51, 0] as [number, number, number], rotation: [-Math.PI / 2, 0, 0] as [number, number, number] },
+    { text: '底', color: '#ffffff', position: [0, -0.51, 0] as [number, number, number], rotation: [Math.PI / 2, 0, 0] as [number, number, number] },
   ];
 
   // 点击面或边角切换视角 - 使用Slerp球形插值
@@ -394,17 +393,17 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
 
   return (
     <group ref={cubeRef} {...(bind() as any)}>
-      {/* 立方体主体 */}
+      {/* 立方体主体 - Shape3D风格：细线框 */}
       <mesh>
         <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.1} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0} />
       </mesh>
 
-      {/* 取消立方体外圈边框显示 */}
-      {/* <lineSegments>
+      {/* Shape3D风格：细黑线边框 */}
+      <lineSegments>
         <edgesGeometry args={[new THREE.BoxGeometry(1, 1, 1)]} />
-        <lineBasicMaterial color="#666666" linewidth={2} />
-      </lineSegments> */}
+        <lineBasicMaterial color="#333333" linewidth={1} />
+      </lineSegments>
 
       {/* 6个面 */}
       {faces.map((face, index) => {
@@ -427,7 +426,7 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
             <meshBasicMaterial
               map={createTextTexture(face.text, face.color, isActive)}
               transparent
-              opacity={isActive ? 1.0 : 0.9}
+              opacity={1.0}
             />
           </mesh>
         );
@@ -441,57 +440,72 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
 
 // 高对比度坐标轴标签组件 - 白色字母+深色描边
 const AxisLabels: React.FC = () => {
-  // 创建带描边的文字纹理
+  // 创建带描边的文字纹理 - 高清晰度版本
   const createAxisTexture = useMemo(() => {
     return (text: string, color: string) => {
+      // 使用更高分辨率的canvas，提升清晰度
       const canvas = document.createElement('canvas');
-      canvas.width = 128;
-      canvas.height = 128;
+      canvas.width = 256;  // 提升到256
+      canvas.height = 256;
       const ctx = canvas.getContext('2d')!;
       
-      // 透明背景
-      ctx.clearRect(0, 0, 128, 128);
+      // 启用抗锯齿
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       
-      // 设置字体
-      ctx.font = 'bold 72px Arial';
+      // 透明背景
+      ctx.clearRect(0, 0, 256, 256);
+      
+      // 设置字体 - 更粗更大
+      ctx.font = 'bold 160px Arial, sans-serif';  // 加大字号
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      // 深色描边 - 多层描边确保清晰
+      // 第一层：最外层深色描边（加强对比度）
       ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 20;  // 加粗描边
+      ctx.strokeText(text, 128, 128);
+      
+      // 第二层：中间层描边
+      ctx.strokeStyle = '#222222';
+      ctx.lineWidth = 14;
+      ctx.strokeText(text, 128, 128);
+      
+      // 第三层：内层描边
+      ctx.strokeStyle = '#444444';
       ctx.lineWidth = 8;
-      ctx.strokeText(text, 64, 64);
+      ctx.strokeText(text, 128, 128);
       
-      // 中间层描边
-      ctx.strokeStyle = '#333333';
-      ctx.lineWidth = 4;
-      ctx.strokeText(text, 64, 64);
-      
-      // 填充白色字母
+      // 填充纯白色字母
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(text, 64, 64);
+      ctx.fillText(text, 128, 128);
       
-      // 添加轻微高光
+      // 添加彩色高光层，增强识别度
+      ctx.globalAlpha = 0.5;  // 提高不透明度
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.3;
-      ctx.fillText(text, 64, 64);
+      ctx.fillText(text, 128, 128);
       
-      return new THREE.CanvasTexture(canvas);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.minFilter = THREE.LinearFilter;  // 优化缩小时的渲染
+      texture.magFilter = THREE.LinearFilter;  // 优化放大时的渲染
+      texture.anisotropy = 16;  // 最大各向异性过滤
+      
+      return texture;
     };
   }, []);
 
-  // X轴纹理 - 红色调
-  const xTexture = useMemo(() => createAxisTexture('X', '#ff4444'), [createAxisTexture]);
-  // Y轴纹理 - 绿色调
-  const yTexture = useMemo(() => createAxisTexture('Y', '#44ff44'), [createAxisTexture]);
-  // Z轴纹理 - 蓝色调
-  const zTexture = useMemo(() => createAxisTexture('Z', '#4444ff'), [createAxisTexture]);
+  // X轴纹理 - 鲜红色
+  const xTexture = useMemo(() => createAxisTexture('X', '#ff3333'), [createAxisTexture]);
+  // Y轴纹理 - 鲜绿色
+  const yTexture = useMemo(() => createAxisTexture('Y', '#33ff33'), [createAxisTexture]);
+  // Z轴纹理 - 鲜蓝色
+  const zTexture = useMemo(() => createAxisTexture('Z', '#3333ff'), [createAxisTexture]);
 
   return (
     <group>
-      {/* X轴标签 - 放置在立方体"前面"底边中心位置 */}
+      {/* X轴标签 - 放置在立方体"前面"底边中心位置，尺寸加大 */}
       <mesh position={[0, -0.72, 0.51]}>
-        <planeGeometry args={[0.35, 0.35]} />
+        <planeGeometry args={[0.45, 0.45]} />
         <meshBasicMaterial 
           map={xTexture} 
           transparent 
@@ -501,9 +515,9 @@ const AxisLabels: React.FC = () => {
         />
       </mesh>
 
-      {/* Y轴标签 - 放置在立方体顶部中心位置 */}
+      {/* Y轴标签 - 放置在立方体顶部中心位置，尺寸加大 */}
       <mesh position={[0, 0.72, 0]}>
-        <planeGeometry args={[0.35, 0.35]} />
+        <planeGeometry args={[0.45, 0.45]} />
         <meshBasicMaterial 
           map={yTexture} 
           transparent 
@@ -513,9 +527,9 @@ const AxisLabels: React.FC = () => {
         />
       </mesh>
 
-      {/* Z轴标签 - 放置在立方体"左面"底边中心位置 */}
+      {/* Z轴标签 - 放置在立方体"左面"底边中心位置，尺寸加大 */}
       <mesh position={[-0.51, -0.72, 0]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[0.35, 0.35]} />
+        <planeGeometry args={[0.45, 0.45]} />
         <meshBasicMaterial 
           map={zTexture} 
           transparent 
@@ -525,9 +539,9 @@ const AxisLabels: React.FC = () => {
         />
       </mesh>
 
-      {/* 坐标轴指示线 - 从立方体角落延伸 */}
+      {/* 坐标轴指示线 - 加粗加亮 */}
       <group position={[-0.5, -0.5, 0.5]}>
-        {/* X轴线 - 红色，指向前面底边 */}
+        {/* X轴线 - 鲜红色，加粗 */}
         <line>
           <bufferGeometry>
             <bufferAttribute
@@ -537,10 +551,10 @@ const AxisLabels: React.FC = () => {
               itemSize={3}
             />
           </bufferGeometry>
-          <lineBasicMaterial color="#ff4444" linewidth={2} />
+          <lineBasicMaterial color="#ff3333" linewidth={3} />
         </line>
         
-        {/* Y轴线 - 绿色，指向顶部 */}
+        {/* Y轴线 - 鲜绿色，加粗 */}
         <line>
           <bufferGeometry>
             <bufferAttribute
@@ -550,10 +564,10 @@ const AxisLabels: React.FC = () => {
               itemSize={3}
             />
           </bufferGeometry>
-          <lineBasicMaterial color="#44ff44" linewidth={2} />
+          <lineBasicMaterial color="#33ff33" linewidth={3} />
         </line>
         
-        {/* Z轴线 - 蓝色，指向左面 */}
+        {/* Z轴线 - 鲜蓝色，加粗 */}
         <line>
           <bufferGeometry>
             <bufferAttribute
@@ -563,7 +577,7 @@ const AxisLabels: React.FC = () => {
               itemSize={3}
             />
           </bufferGeometry>
-          <lineBasicMaterial color="#4444ff" linewidth={2} />
+          <lineBasicMaterial color="#3333ff" linewidth={3} />
         </line>
       </group>
     </group>
@@ -616,20 +630,23 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     >
       <Canvas
         camera={{ 
-          position: [0, 0, 3.2],  // 相机拉近，使立方体在缩小容器中保持视觉大小
+          position: [0, 0, 3.2],
           fov: 50 
         }}
         style={{ 
-          // 不透明背景确保可视对比度
-          background: 'rgba(255, 255, 255, 1)', 
-          borderRadius: '8px',  // 圆角缩小
-          boxShadow: '0 3px 10px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.08)',  // 阴影略微缩小
-          border: '1px solid rgba(0,0,0,0.08)',
+          background: 'transparent',
+          borderRadius: '0',
+          boxShadow: 'none',
+          border: 'none',
         }}
         gl={{ 
           preserveDrawingBuffer: true, 
-          antialias: true
+          antialias: true,
+          alpha: true,
+          // 高质量渲染设置
+          powerPreference: 'high-performance'
         }}
+        dpr={[1, 2]}  // 设备像素比，支持Retina屏幕
         // 移动端触摸优化
         events={(store) => ({
           ...store,

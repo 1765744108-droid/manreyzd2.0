@@ -105,8 +105,11 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
-  const [currentRotation, setCurrentRotation] = useState<[number, number, number]>(data.rotation);
-  const [targetRotation, setTargetRotation] = useState<[number, number, number]>(data.rotation);
+  const [wireframeCount, setWireframeCount] = useState(0); // 线框计数器
+  
+  // 性能优化：使用 useRef 管理旋转状态，避免频繁重渲染
+  const currentRotationRef = useRef<[number, number, number]>(data.rotation);
+  const targetRotationRef = useRef<[number, number, number]>(data.rotation);
   
   // 性能优化：使用 useRef 跟踪实时位置，避免状态更新延迟
   const positionRef = useRef<[number, number, number]>(data.position);
@@ -125,8 +128,16 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   }, [data.position]);
   
   // 克隆模型场景 - 只克隆需要渲染的部分
-  const rectangularClone = useMemo(() => rectangularPart ? rectangularPart.scene.clone() : null, [rectangularPart]);
-  const otherClone = useMemo(() => otherPart ? otherPart.scene.clone() : null, [otherPart]);
+  // 关键：添加 data.id 作为依赖，确保每个模型独立重建
+  const rectangularClone = useMemo(() => {
+    if (!rectangularPart) return null;
+    return rectangularPart.scene.clone();
+  }, [rectangularPart, data.rectangularPartUrl, data.id]);
+  
+  const otherClone = useMemo(() => {
+    if (!otherPart) return null;
+    return otherPart.scene.clone();
+  }, [otherPart, data.otherPartUrl, data.id]);
   
   // 组件卸载时清理全局事件监听器，防止内存泄漏
   useEffect(() => {
@@ -144,28 +155,38 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   
   // Update target rotation when data.rotation changes
   useEffect(() => {
-    setTargetRotation(data.rotation);
+    targetRotationRef.current = data.rotation;
   }, [data.rotation]);
   
-  // Smooth rotation animation using useFrame - 优化版
+  // Smooth rotation animation using useFrame - 极致性能优化版
   useFrame((state, delta) => {
-    if (currentRotation[0] !== targetRotation[0] || 
-        currentRotation[1] !== targetRotation[1] || 
-        currentRotation[2] !== targetRotation[2]) {
+    const current = currentRotationRef.current;
+    const target = targetRotationRef.current;
+    
+    // 快速检查是否需要更新
+    const needsUpdate = current[0] !== target[0] || current[1] !== target[1] || current[2] !== target[2];
+    
+    if (needsUpdate && groupRef.current) {
       // 动态缓动系数，根据帧率调整
-      const easeFactor = Math.min(10 * delta, 0.3); // 提高响应速度，最多30%
-      const newX = currentRotation[0] + (targetRotation[0] - currentRotation[0]) * easeFactor;
-      const newY = currentRotation[1] + (targetRotation[1] - currentRotation[1]) * easeFactor;
-      const newZ = currentRotation[2] + (targetRotation[2] - currentRotation[2]) * easeFactor;
+      const easeFactor = Math.min(10 * delta, 0.3);
+      const newX = current[0] + (target[0] - current[0]) * easeFactor;
+      const newY = current[1] + (target[1] - current[1]) * easeFactor;
+      const newZ = current[2] + (target[2] - current[2]) * easeFactor;
       
-      // 直接更新，减少不必要的重渲染
+      // 直接更新ref，不触发重渲染
       const threshold = 0.001;
-      if (Math.abs(targetRotation[0] - newX) > threshold ||
-          Math.abs(targetRotation[1] - newY) > threshold ||
-          Math.abs(targetRotation[2] - newZ) > threshold) {
-        setCurrentRotation([newX, newY, newZ]);
+      if (Math.abs(target[0] - newX) > threshold ||
+          Math.abs(target[1] - newY) > threshold ||
+          Math.abs(target[2] - newZ) > threshold) {
+        currentRotationRef.current = [newX, newY, newZ];
       } else {
-        setCurrentRotation(targetRotation);
+        currentRotationRef.current = target;
+      }
+      
+      // 直接更新Three.js对象，完全跳过React
+      const rotationGroup = groupRef.current.children[0];
+      if (rotationGroup) {
+        rotationGroup.rotation.y = currentRotationRef.current[1];
       }
     }
   });
@@ -208,26 +229,36 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     // 计算矩形部分的高度
     const rectHeight = rectBox.max.y - rectBox.min.y;
     
-    // 计算矩形部分的水平偏移：将其左侧边缘与塔仓右侧边缘对齐
-    const otherRightEdge = otherBox.max.x; // 塔仓的右侧边缘
-    const rectLeftEdge = rectBox.min.x;   // 矩形的左侧边缘
+    // 塔仓逆时针旋转90度后的边界框计算
+    // 旋转后：原X轴 -> 新Z轴（负方向），原Z轴 -> 新X轴
+    const otherRotatedWidth = otherBox.max.z - otherBox.min.z;  // 旋转后的宽度（原深度）
+    const otherRotatedDepth = otherBox.max.x - otherBox.min.x;  // 旋转后的深度（原宽度）
     
-    // 计算需要的水平偏移量
-    const horizontalOffset = otherRightEdge - rectLeftEdge;
+    // 计算塔仓旋转中心（基于原始边界框）
+    const otherCenterX = (otherBox.min.x + otherBox.max.x) / 2;
+    const otherCenterZ = (otherBox.min.z + otherBox.max.z) / 2;
     
-    // 计算垂直偏移量：将矩形部分向下移动其高度的1/6
-    const verticalOffset = -rectHeight / 6;
+    // 塔仓逆时针旋转90度，并调整位置使其与矩形连接
+    // 旋转后塔仓的右侧（+X方向）应与矩形的左侧对齐
+    const rectLeftEdge = rectBox.min.x;
     
-    // 设置矩形部分的偏移（向右移动 + 向下移动）
-    setRectangularPartOffset(new THREE.Vector3(horizontalOffset, verticalOffset, 0));
+    // 计算旋转后塔仓的新位置
+    // 旋转中心偏移 + 对齐偏移
+    const otherOffsetX = rectLeftEdge - otherRotatedWidth / 2;
+    const otherOffsetZ = -otherCenterZ; // 保持Z轴居中
     
-    // 塔仓部分保持原位
-    setOtherPartOffset(new THREE.Vector3(0, 0, 0));
+    // 设置塔仓部分的偏移和旋转
+    setOtherPartOffset(new THREE.Vector3(otherOffsetX, 0, otherOffsetZ));
+    
+    // ===== 关键修正：基于完整模型分析真实连接关系 =====
+    // 矩形模型向上提高其自身高度的 0.95/4
+    const rectVerticalOffset = rectHeight * (0.95 / 4);
+    setRectangularPartOffset(new THREE.Vector3(0, rectVerticalOffset, 0));
     
     // 计算矩形部分的几何中心（应用偏移后的位置）
     const rectCenter = new THREE.Vector3(
-      (rectBox.min.x + rectBox.max.x) / 2 + horizontalOffset,
-      (rectBox.min.y + rectBox.max.y) / 2 + offsetY + verticalOffset,
+      (rectBox.min.x + rectBox.max.x) / 2,
+      (rectBox.min.y + rectBox.max.y) / 2 + offsetY,
       (rectBox.min.z + rectBox.max.z) / 2
     );
     setRotationCenter(rectCenter);
@@ -245,75 +276,191 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     });
   }, [fullModel.scene, rectangularClone, otherClone]);
 
-  // 缓存材质设置回调
-  const setupMaterials = useCallback((clone: THREE.Group | null, _isRectangular: boolean) => {
-    if (!clone) return;
+  // 缓存材质设置回调 - 高质量渲染配置
+  // 使用 useRef 存储线框状态，避免重建
+  const wireframesCreatedRef = useRef<Set<string>>(new Set());
     
+  const setupMaterials = useCallback((clone: THREE.Group | null, isRectangular: boolean) => {
+    if (!clone) return;
+      
     const baseOpacity = data.opacity ?? 1.0;
     const isWireframe = data.wireframe ?? false;
-    
+    const modelId = data.id;
+      
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-
+  
         if (child.material) {
           const materials = Array.isArray(child.material) ? child.material : [child.material];
-          
+            
           materials.forEach((mat) => {
-            if (data.id === 'model-1') {
-              // 模型1：蓝色调
-              mat.transparent = baseOpacity < 1.0;
-              mat.opacity = baseOpacity;
+            const isTransparent = baseOpacity < 1.0;
+            mat.transparent = isTransparent;
+            mat.opacity = baseOpacity;
+              
+            if (isTransparent) {
+              mat.depthWrite = false;
+              mat.depthTest = true;
+              mat.side = THREE.DoubleSide;
+              mat.alphaTest = 0;
+              child.renderOrder = modelId === 'model-1' ? 100 : 101;
+            } else {
               mat.depthWrite = true;
               mat.depthTest = true;
-              mat.polygonOffset = true;
-              mat.polygonOffsetFactor = 1;
-              mat.polygonOffsetUnits = 1;
-              child.renderOrder = 1;
-              mat.color.set('#1781b5');
-            } else if (data.id === 'model-2') {
-              // 模型2：红色调
-              mat.transparent = baseOpacity < 1.0;
-              mat.opacity = baseOpacity * 0.85; // 稍微更透明
-              mat.depthWrite = baseOpacity >= 1.0;
-              mat.depthTest = true;
-              mat.polygonOffset = true;
-              mat.polygonOffsetFactor = -1;
-              mat.polygonOffsetUnits = -1;
-              child.renderOrder = 2;
-              mat.color.set('#ee3f4d');
-            } else {
-              mat.transparent = baseOpacity < 1.0;
-              mat.opacity = baseOpacity;
-              mat.color.set(0xffffff);
+              mat.side = THREE.FrontSide;
+              child.renderOrder = modelId === 'model-1' ? 1 : 2;
             }
-            
-            // 线框模式
+              
             mat.wireframe = isWireframe;
-            
-            mat.side = THREE.FrontSide;
             mat.blending = THREE.NormalBlending;
+              
+            if (mat instanceof THREE.MeshStandardMaterial) {
+              mat.roughness = 0.35;
+              mat.metalness = 0.15;
+              mat.envMapIntensity = 1.8;
+              mat.flatShading = false;
+            }
+              
+            if (modelId === 'model-1') {
+              if (!mat.map || isWireframe) {
+                mat.color.set('#1781b5');
+              }
+              if (!isTransparent) {
+                mat.polygonOffset = true;
+                mat.polygonOffsetFactor = 1;
+                mat.polygonOffsetUnits = 1;
+              }
+            } else if (modelId === 'model-2') {
+              if (!mat.map || isWireframe) {
+                mat.color.set('#ee3f4d');
+              }
+              if (!isTransparent) {
+                mat.polygonOffset = true;
+                mat.polygonOffsetFactor = -1;
+                mat.polygonOffsetUnits = -1;
+              }
+            } else {
+              if (!mat.map || isWireframe) {
+                mat.color.set(0xffffff);
+              }
+            }
+              
             mat.needsUpdate = true;
           });
+        }
+          
+        // 添加线框轮廓（常规模式下）
+        // 使用唯一ID确保每个mesh只创建一次线框
+        const meshId = `${modelId}-${child.uuid}`;
+        if (!isWireframe && child.geometry && !wireframesCreatedRef.current.has(meshId)) {
+          try {
+            // 检查几何体是否有效
+            if (!child.geometry.attributes.position || child.geometry.attributes.position.count === 0) {
+              console.warn('Invalid geometry for mesh:', meshId);
+              return;
+            }
+            
+            const edges = new THREE.EdgesGeometry(child.geometry, 15);
+              
+            const lineMaterial = new THREE.LineBasicMaterial({ 
+              color: '#000000',
+              transparent: false,
+              opacity: 1.0,
+              depthTest: true,
+              depthWrite: false
+            });
+            const wireframe = new THREE.LineSegments(edges, lineMaterial);
+            wireframe.userData.isWireframeOverlay = true;
+            wireframe.userData.meshId = meshId;
+            wireframe.renderOrder = 10000;
+            child.add(wireframe);
+              
+            // 记录已创建线框
+            wireframesCreatedRef.current.add(meshId);
+            console.log(`[${modelId}] Created wireframe for mesh:`, meshId);
+          } catch (e) {
+            console.warn('Failed to create wireframe for mesh:', meshId, e);
+          }
         }
       }
     });
   }, [data.id, data.opacity, data.wireframe]);
 
-  // 设置材质属性
+  // 设置材质属性 - 确保每次模型或材质参数变化时都重新应用
   useEffect(() => {
+    if (!rectangularClone && !otherClone) return;
+    
+    // 清理旧的线框轮廓
+    const cleanupWireframes = (clone: THREE.Group | null) => {
+      if (!clone) return;
+      clone.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const existingWireframes = child.children.filter(c => c.userData.isWireframeOverlay);
+          existingWireframes.forEach(wf => {
+            child.remove(wf);
+            if (wf instanceof THREE.LineSegments) {
+              wf.geometry?.dispose();
+              if (wf.material instanceof THREE.Material) {
+                wf.material.dispose();
+              }
+            }
+            // 从记录中移除
+            if (wf.userData.meshId) {
+              wireframesCreatedRef.current.delete(wf.userData.meshId);
+            }
+          });
+        }
+      });
+    };
+    
+    // 模型变化时清理线框记录
+    cleanupWireframes(rectangularClone);
+    cleanupWireframes(otherClone);
+    
+    // 清空线框记录（模型变化时）
+    wireframesCreatedRef.current.clear();
+    
+    // 立即应用材质和线框
     setupMaterials(rectangularClone, true);
     setupMaterials(otherClone, false);
-  }, [rectangularClone, otherClone, setupMaterials]);
+    
+    // 强制场景更新
+    if (groupRef.current) {
+      groupRef.current.updateMatrixWorld(true);
+    }
+    
+    // 调试：输出线框创建状态
+    console.log(`[${data.id}] Wireframes created:`, wireframesCreatedRef.current.size);
+    setWireframeCount(wireframesCreatedRef.current.size);
+  }, [rectangularClone, otherClone, setupMaterials, data.wireframe, data.id]);
+
+  // 单独处理透明度变化，不重建线框
+  useEffect(() => {
+    if (!rectangularClone && !otherClone) return;
+    
+    const updateOpacity = (clone: THREE.Group | null) => {
+      if (!clone) return;
+      clone.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+          const mat = child.material;
+          const isTransparent = data.opacity < 1.0;
+          mat.transparent = isTransparent;
+          mat.opacity = data.opacity;
+          mat.needsUpdate = true;
+        }
+      });
+    };
+    
+    updateOpacity(rectangularClone);
+    updateOpacity(otherClone);
+  }, [rectangularClone, otherClone, data.opacity]);
 
   // 移除 overlapClone 逻辑，避免重复渲染导致闪烁
   // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果
 
-  // 获取视口尺寸用于计算移动缩放
-  const { size } = useThree();
-
-  // 拖拽处理 - 全视角感知，丝滑跟随
+  // 拖拽处理 - 极致性能优化，完全跳过React状态更新
   const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     
@@ -341,75 +488,82 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     const rightOnPlane = new THREE.Vector3(cameraRight.x, 0, cameraRight.z);
     const upOnPlane = new THREE.Vector3(cameraUp.x, 0, cameraUp.z);
     
-    // 处理俯视角度（当相机几乎垂直向下看时）
+    // 处理俯视角度
     const rightLen = rightOnPlane.length();
     const upLen = upOnPlane.length();
     
     if (rightLen > 0.01) {
       rightOnPlane.divideScalar(rightLen);
     } else {
-      // 俯视时使用默认右向量
       rightOnPlane.set(1, 0, 0);
     }
     
     if (upLen > 0.01) {
       upOnPlane.divideScalar(upLen);
     } else {
-      // 俯视时使用默认上向量（屏幕向上对应世界-Z）
       upOnPlane.set(0, 0, -1);
     }
     
-    // 计算移动缩放系数（基于视口大小和相机距离）
+    // 计算移动缩放系数
     const cameraDistance = camera.position.length();
-    const baseMoveSpeed = 0.012; // 基础速度，丝滑但不过快
+    const baseMoveSpeed = 0.012;
     const distanceFactor = Math.max(0.5, Math.min(2, cameraDistance / 10));
     const moveSpeed = baseMoveSpeed * distanceFactor;
     
-    // 添加全局事件监听器（确保指针移出模型区域时仍能跟随）
+    // 边界限制常量
+    const GRID_SIZE = 6;
+    const BOUNDARY_MIN = -GRID_SIZE / 2;
+    const BOUNDARY_MAX = GRID_SIZE / 2;
+    
+    // 极致性能：直接操作Three.js对象，完全不触发React更新
     const handleGlobalMove = (moveEvent: PointerEvent) => {
-      if (!isDraggingRef.current) return;
-      if (!lastPointerPosRef.current) return;
+      if (!isDraggingRef.current || !lastPointerPosRef.current || !groupRef.current) return;
       
       // 计算屏幕空间移动增量
       const deltaX = moveEvent.clientX - lastPointerPosRef.current.x;
       const deltaY = moveEvent.clientY - lastPointerPosRef.current.y;
       
-      // 立即更新指针位置（减少延迟）
+      // 立即更新指针位置
       lastPointerPosRef.current = { x: moveEvent.clientX, y: moveEvent.clientY };
       
-      // 忽略微小移动（避免抖动）
+      // 忽略微小移动
       if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
       
-      // 边界限制
-      const GRID_SIZE = 6;
-      const BOUNDARY_MIN = -GRID_SIZE / 2;
-      const BOUNDARY_MAX = GRID_SIZE / 2;
-      
-      // 根据屏幕移动计算世界空间移动
-      // 屏幕向右(+deltaX) -> 模型沿相机右向量移动
-      // 屏幕向下(+deltaY) -> 模型沿相机上向量的反方向移动
+      // 计算世界空间移动
       const worldDeltaX = (rightOnPlane.x * deltaX - upOnPlane.x * deltaY) * moveSpeed;
       const worldDeltaZ = (rightOnPlane.z * deltaX - upOnPlane.z * deltaY) * moveSpeed;
       
-      // 获取当前位置
+      // 获取当前位置并计算新位置
       const currentPos = positionRef.current;
-      
-      // 计算新位置（应用边界约束）
       const newX = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[0] + worldDeltaX));
       const newZ = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[2] + worldDeltaZ));
       
-      // 更新位置
-      const newPosition: [number, number, number] = [newX, currentPos[1], newZ];
-      positionRef.current = newPosition;
+      // 更新ref
+      positionRef.current = [newX, currentPos[1], newZ];
       
-      // 立即触发更新
-      onUpdate(data.id, { position: newPosition });
+      // 极致性能：直接操作Three.js对象位置，完全跳过React
+      groupRef.current.position.x = newX;
+      groupRef.current.position.z = newZ;
     };
     
     const handleGlobalUp = () => {
+      if (!isDraggingRef.current) return;
+      
       isDraggingRef.current = false;
       lastPointerPosRef.current = null;
       globalHandlersRef.current = { move: null, up: null };
+      
+      // 拖拽结束时同步一次状态到React
+      if (groupRef.current) {
+        const finalPosition: [number, number, number] = [
+          groupRef.current.position.x,
+          groupRef.current.position.y,
+          groupRef.current.position.z
+        ];
+        positionRef.current = finalPosition;
+        onUpdate(data.id, { position: finalPosition });
+      }
+      
       onDragEnd?.();
       
       // 移除全局事件监听器
@@ -418,14 +572,14 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       window.removeEventListener('pointercancel', handleGlobalUp);
     };
     
-    // 保存事件处理器引用，用于组件卸载时清理
+    // 保存事件处理器引用
     globalHandlersRef.current = { move: handleGlobalMove, up: handleGlobalUp };
     
     // 添加全局事件监听器 - 使用 passive 提高性能
     window.addEventListener('pointermove', handleGlobalMove, { passive: true });
     window.addEventListener('pointerup', handleGlobalUp);
     window.addEventListener('pointercancel', handleGlobalUp);
-  }, [data.selected, data.id, onSelect, onDragStart, onDragEnd, onUpdate, camera, size]);
+  }, [data.selected, data.id, onSelect, onDragStart, onDragEnd, onUpdate, camera]);
 
   const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
     // 只有在没有拖拽时才触发点击
@@ -439,6 +593,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   // 获取分部可见性设置
   const partialVisibility = data.partialVisibility || { rectangularParts: true, otherParts: true };
   
+  // 使用ref中的旋转值
+  const rotation = currentRotationRef.current;
+  
   return (
     <group 
       ref={groupRef}
@@ -450,10 +607,10 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       onPointerOut={() => setHovered(false)}
     >
       {/* Y轴旋转（顺时针）使用原点为中心 */}
-      <group rotation={[0, currentRotation[1], 0]}>
+      <group rotation={[0, rotation[1], 0]}>
         {/* X轴和Z轴旋转使用矩形中心为中心 */}
         <group position={[rotationCenter.x, rotationCenter.y, rotationCenter.z]}>
-          <group rotation={[currentRotation[0], 0, currentRotation[2]]}>
+          <group rotation={[rotation[0], 0, rotation[2]]}>
             <group position={[-rotationCenter.x, -rotationCenter.y, -rotationCenter.z]}>
               {/* 使用统一的模型偏移，保持两个部分的相对位置 */}
               <group position={[0, modelOffset.y, 0]}>
@@ -464,10 +621,12 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
                   </group>
                 )}
                 
-                {/* 塔仓部分 - 保持原位 */}
+                {/* 塔仓部分 - 逆时针旋转90度再顺时针旋转180度（总计顺时针 90度）并与矩形连接 */}
                 {otherClone && partialVisibility.otherParts && (
                   <group position={[otherPartOffset.x, otherPartOffset.y, otherPartOffset.z]}>
-                    <primitive object={otherClone} />
+                    <group rotation={[0, Math.PI / 2, 0]}>
+                      <primitive object={otherClone} />
+                    </group>
                   </group>
                 )}
               </group>
@@ -496,6 +655,14 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           opacity={0.5} 
         />
       )}
+      
+      {/* 调试信息：线框计数 */}
+      <group position={[0, 4, 0]}>
+        <mesh>
+          <planeGeometry args={[1.5, 0.4]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.9} />
+        </mesh>
+      </group>
     </group>
   );
 };

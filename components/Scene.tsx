@@ -93,6 +93,13 @@ const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
 const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ models, onSelectModel, onUpdateModel, cameraControlsRef, shadowMapSize = 2048 }) => {
   const [isModelDragging, setIsModelDragging] = useState(false);
   const controlsRef = useRef<OrbitControlsType>(null);
+  const { scene, gl } = useThree();
+  
+  // 设置场景背景色 - Shape3D风格：浅灰白色
+  useEffect(() => {
+    scene.background = new THREE.Color('#f5f5f5');
+    gl.setClearColor('#f5f5f5', 1);
+  }, [scene, gl]);
   
   // 使用 useMemo 缓存重叠检测计算
   const overlapInfo = useMemo(() => {
@@ -166,22 +173,52 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ model
 
   return (
     <>
-      <ambientLight intensity={1.0} />
+      {/* Shape3D风格光照：柔和均匀 */}
+      <ambientLight intensity={0.8} />
+      
+      {/* 半球光：模拟天空和地面反射 */}
+      <hemisphereLight 
+        args={['#ffffff', '#f0f0f0', 1.0]}
+        position={[0, 20, 0]}
+      />
+      
+      {/* 主方向光：柔和立体感 */}
       <directionalLight 
         position={[10, 20, 10]} 
-        intensity={1.5} 
+        intensity={1.5}
         castShadow 
         shadow-mapSize={[shadowMapSize, shadowMapSize]}
+        shadow-camera-left={-10}
+        shadow-camera-right={10}
+        shadow-camera-top={10}
+        shadow-camera-bottom={-10}
+        shadow-camera-near={0.1}
+        shadow-camera-far={50}
+        shadow-bias={-0.0001}
+      />
+      
+      {/* 辅助方向光 */}
+      <directionalLight 
+        position={[-8, 15, -8]} 
+        intensity={1.0}
+        castShadow={false}
       />
 
-      {/* Enhanced grid with better visibility */}
+      {/* Shape3D风格网格：细密斜线交叉网格 */}
       <gridHelper 
-        args={[6, 6, COLORS.grid, COLORS.grid]} 
-        position={[0, 0.01, 0]} 
-        scale={1}
+        args={[20, 40, '#d0d0d0', '#d8d8d8']} 
+        position={[0, 0, 0]} 
+        rotation={[0, Math.PI / 4, 0]}
       >
-        {/* Add material override for better grid visibility */}
-        <lineBasicMaterial attach="material" color={COLORS.grid} transparent opacity={0.7} />
+        <lineBasicMaterial attach="material" color="#d0d0d0" transparent opacity={0.5} />
+      </gridHelper>
+      
+      {/* 底部网格：水平网格 */}
+      <gridHelper 
+        args={[20, 20, '#d0d0d0', '#e0e0e0']} 
+        position={[0, 0, 0]}
+      >
+        <lineBasicMaterial attach="material" color="#d0d0d0" transparent opacity={0.4} />
       </gridHelper>
       <Ground onDeselect={() => onSelectModel(null)} />
       
@@ -240,12 +277,21 @@ export const Scene: React.FC<SceneProps> = (props) => {
   
   return (
     <Canvas
-      shadows
+      shadows="soft" // 柔和阴影
       camera={{ position: INITIAL_CAMERA_POSITION, fov: 45 }}
       style={{ background: COLORS.background, touchAction: 'none' }}
       dpr={dpr}
       performance={{ min: 0.5 }} // 自动降级性能
       frameloop="demand" // 仅在需要时重渲染
+      gl={{
+        antialias: true, // 启用抗锯齿，消除边缘锯齿
+        alpha: false, // 禁用透明度，提高性能
+        toneMapping: THREE.ACESFilmicToneMapping, // 电影色调映射，增强真实感
+        toneMappingExposure: 1.0, // 降低曝光度
+        outputColorSpace: THREE.SRGBColorSpace, // 标准颜色空间
+        // 透明物体排序优化
+        sortObjects: true,
+      }}
     >
       <SceneContent {...props} shadowMapSize={shadowMapSize} />
     </Canvas>
