@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { RotateCw, Box, ChevronDown, ChevronUp, RotateCcw, X, Hand, Move, ZoomIn, MousePointer2, Eye, EyeOff, Layers, Compass, SlidersHorizontal, Smartphone, Navigation } from 'lucide-react';
+import { RotateCw, Box, ChevronDown, ChevronUp, RotateCcw, X, Hand, Move, ZoomIn, MousePointer2, Eye, EyeOff, Layers, Compass, SlidersHorizontal, Smartphone, Navigation, Lock, Unlock, MapPin } from 'lucide-react';
 import { ModelData } from '../types';
+import { ANIMATION_CONFIG } from '../constants';
 
 interface ControlsProps {
   models: ModelData[];
@@ -19,6 +20,9 @@ const ControlPanel: React.FC<{
   // 长按相关状态
   const [isLongPressing, setIsLongPressing] = useState(false);
   const [longPressDirection, setLongPressDirection] = useState<'up' | 'down' | null>(null);
+  // 透明度本地状态（用于节流）
+  const [localOpacity, setLocalOpacity] = useState((model.opacity ?? 1) * 100);
+  const opacityTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // 使用 useRef 保存定时器引用，避免闭包问题
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -35,6 +39,35 @@ const ControlPanel: React.FC<{
   useEffect(() => {
     positionRef.current = model.position;
   }, [model.position]);
+  
+  // 同步外部透明度变化
+  useEffect(() => {
+    setLocalOpacity((model.opacity ?? 1) * 100);
+  }, [model.opacity]);
+  
+  // 清理透明度定时器
+  useEffect(() => {
+    return () => {
+      if (opacityTimerRef.current) {
+        clearTimeout(opacityTimerRef.current);
+      }
+    };
+  }, []);
+  
+  // 透明度节流更新
+  const handleOpacityChange = useCallback((value: number) => {
+    setLocalOpacity(value);
+    
+    // 清除之前的定时器
+    if (opacityTimerRef.current) {
+      clearTimeout(opacityTimerRef.current);
+    }
+    
+    // 节流100ms后才更新父组件状态
+    opacityTimerRef.current = setTimeout(() => {
+      onUpdate(model.id, { opacity: value / 100 });
+    }, 100);
+  }, [model.id, onUpdate]);
   
   const rotateModel = (axis: 'x' | 'z') => {
     const rad = Math.PI / 2; // 90 degrees
@@ -175,98 +208,109 @@ const ControlPanel: React.FC<{
   }, [clearAllTimers]);
 
   return (
-    <div className={`rounded-lg backdrop-blur-md transition-all duration-300 border ${isActive ? 'bg-white/95 border-blue-400 shadow-lg' : 'bg-white/80 border-gray-200'}`}>
-      {/* 紧凑标题栏 */}
-      <div className="flex items-center justify-between px-2 py-1.5">
-        <div className="flex items-center gap-1.5">
-          <Box size={12} className={isActive ? "text-blue-500" : "text-gray-500"} />
-          <span className={`font-semibold text-xs ${isActive ? "text-blue-700" : "text-gray-700"}`}>{model.name}</span>
+    <div className={`rounded-xl backdrop-blur-md transition-all duration-300 border ${isActive ? 'bg-white/95 border-blue-400 shadow-lg ring-2 ring-blue-200' : 'bg-white/90 border-gray-200 shadow-md'}`}>
+      {/* 紧凑标题栏 - 增大触摸区域 */}
+      <div className="flex items-center justify-between px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Box size={14} className={isActive ? "text-blue-500" : "text-gray-500"} />
+          <span className={`font-bold text-sm ${isActive ? "text-blue-700" : "text-gray-700"}`}>{model.name}</span>
         </div>
-        <div className="flex items-center gap-0.5">
-          {/* 重置按钮 - 紧凑版 */}
+        <div className="flex items-center gap-1">
+          {/* 重置按钮 */}
           <button
             onClick={onReset}
-            className="p-1.5 hover:bg-gray-100 rounded active:scale-95 transition-all touch-manipulation"
+            className="p-2.5 hover:bg-gray-100 rounded-lg active:scale-95 transition-all touch-manipulation"
             title="重置视图"
           >
-            <RotateCcw size={14} className="text-gray-600" />
+            <RotateCcw size={16} className="text-gray-600" />
           </button>
           {/* 折叠按钮 */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 hover:bg-gray-100 rounded active:scale-95 transition-all touch-manipulation"
+            className="p-2.5 hover:bg-gray-100 rounded-lg active:scale-95 transition-all touch-manipulation"
             title={isCollapsed ? "展开" : "折叠"}
           >
-            {isCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {isCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
         </div>
       </div>
 
-      {/* 可折叠内容 - 紧凑布局 */}
+      {/* 可折叠内容 - 移动端优化布局 */}
       {!isCollapsed && (
-        <div className="px-2 pb-2 space-y-1.5">
-          {/* 分部控制 - 横向紧凑 */}
-          <div className="grid grid-cols-3 gap-1">
+        <div className="px-3 pb-3 space-y-2">
+          {/* 分部控制 - 横向紧凑，添加文字标签 */}
+          <div className="grid grid-cols-3 gap-1.5">
             <button
               onClick={() => togglePartialVisibility('rectangular')}
-              className={`flex items-center justify-center py-2 px-1 border rounded transition-all text-[9px] touch-manipulation ${
+              className={`flex flex-col items-center justify-center py-2.5 px-2 border rounded-lg transition-all touch-manipulation min-h-[52px] active:scale-95 ${
                   model.partialVisibility?.rectangularParts !== false 
                     ? 'bg-green-50 border-green-300 text-green-700' 
                     : 'bg-gray-50 border-gray-200 text-gray-400'
                 }`}
-                title="矩形"
+                title="矩形部分"
               >
-                <span className="text-sm">■</span>
+                <span className="text-base">■</span>
+                <span className="text-[10px] mt-0.5 font-medium">矩形</span>
               </button>
               <button
                 onClick={() => togglePartialVisibility('other')}
-                className={`flex items-center justify-center py-2 px-1 border rounded transition-all text-[9px] touch-manipulation ${
+                className={`flex flex-col items-center justify-center py-2.5 px-2 border rounded-lg transition-all touch-manipulation min-h-[52px] active:scale-95 ${
                   model.partialVisibility?.otherParts !== false 
                     ? 'bg-blue-50 border-blue-300 text-blue-700' 
                     : 'bg-gray-50 border-gray-200 text-gray-400'
                 }`}
-                title="其他"
+                title="塔仓部分"
               >
-                <span className="text-sm">●</span>
+                <span className="text-base">●</span>
+                <span className="text-[10px] mt-0.5 font-medium">塔仓</span>
               </button>
               <button
                 onClick={() => togglePartialVisibility('all')}
-                className={`flex items-center justify-center py-2 px-1 border rounded transition-all text-[9px] touch-manipulation ${
+                className={`flex flex-col items-center justify-center py-2.5 px-2 border rounded-lg transition-all touch-manipulation min-h-[52px] active:scale-95 ${
                   (model.partialVisibility?.rectangularParts !== false && model.partialVisibility?.otherParts !== false)
                     ? 'bg-purple-50 border-purple-300 text-purple-700' 
                     : 'bg-gray-50 border-gray-200 text-gray-400'
                 }`}
                 title="全部"
               >
-                <span className="text-sm">■●</span>
+                <span className="text-base">■●</span>
+                <span className="text-[10px] mt-0.5 font-medium">全部</span>
               </button>
             </div>
+          
+          {/* 位置显示 - 移动端可选隐藏 */}
+          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-gray-500 bg-gray-50 rounded-lg px-2.5 py-1.5">
+            <MapPin size={12} />
+            <span>X:{model.position[0].toFixed(1)}</span>
+            <span>Y:{model.position[1].toFixed(1)}</span>
+            <span>Z:{model.position[2].toFixed(1)}</span>
+          </div>
 
-          {/* 旋转和高度控制合并 - 5列紧凑布局 */}
-          <div className="grid grid-cols-5 gap-1">
+          {/* 旋转和高度控制合并 - 5列紧凑布局，增大触摸目标 */}
+          <div className="grid grid-cols-5 gap-1.5">
             <button 
               onClick={() => rotateModel('x')}
-              className="flex flex-col items-center justify-center py-2 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded active:scale-95 transition-all touch-manipulation"
+              className="flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px]"
               title="X轴"
             >
-              <RotateCw size={14} className="text-gray-600" />
-              <span className="text-[8px] text-gray-500 mt-0.5">X</span>
+              <RotateCw size={18} className="text-gray-600" />
+              <span className="text-[10px] text-gray-500 mt-0.5 font-medium">X</span>
             </button>
             <button 
               onClick={() => rotateModel('z')}
-              className="flex flex-col items-center justify-center py-2 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded active:scale-95 transition-all touch-manipulation"
+              className="flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px]"
               title="Z轴"
             >
-              <RotateCw size={14} className="text-gray-600" />
-              <span className="text-[8px] text-gray-500 mt-0.5">Z</span>
+              <RotateCw size={18} className="text-gray-600" />
+              <span className="text-[10px] text-gray-500 mt-0.5 font-medium">Z</span>
             </button>
             <button 
               onClick={rotateClockwise}
-              className="flex flex-col items-center justify-center py-2 bg-gray-50 hover:bg-green-50 border border-gray-200 rounded active:scale-95 transition-all touch-manipulation"
+              className="flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-green-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px]"
               title="顺时针"
             >
-              <RotateCw size={14} className="text-green-600" />
-              <span className="text-[8px] text-green-500 mt-0.5">Y</span>
+              <RotateCw size={18} className="text-green-600" />
+              <span className="text-[10px] text-green-500 mt-0.5 font-medium">Y</span>
             </button>
             <button 
               onClick={() => adjustHeight('up')}
@@ -275,10 +319,10 @@ const ControlPanel: React.FC<{
               onMouseLeave={stopLongPress}
               onTouchStart={startLongPress('up')}
               onTouchEnd={stopLongPress}
-              className={`flex flex-col items-center justify-center py-2 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded active:scale-95 transition-all touch-manipulation ${isLongPressing && longPressDirection === 'up' ? 'bg-purple-100 border-purple-400' : ''}`}
+              className={`flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px] ${isLongPressing && longPressDirection === 'up' ? 'bg-purple-100 border-purple-400' : ''}`}
               title="升高"
             >
-              <span className="text-base font-bold text-purple-600">↑</span>
+              <span className="text-xl font-bold text-purple-600">↑</span>
             </button>
             <button 
               onClick={() => adjustHeight('down')}
@@ -287,27 +331,24 @@ const ControlPanel: React.FC<{
               onMouseLeave={stopLongPress}
               onTouchStart={startLongPress('down')}
               onTouchEnd={stopLongPress}
-              className={`flex flex-col items-center justify-center py-2 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded active:scale-95 transition-all touch-manipulation ${isLongPressing && longPressDirection === 'down' ? 'bg-purple-100 border-purple-400' : ''}`}
+              className={`flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px] ${isLongPressing && longPressDirection === 'down' ? 'bg-purple-100 border-purple-400' : ''}`}
               title="降低"
             >
-              <span className="text-base font-bold text-purple-600">↓</span>
+              <span className="text-xl font-bold text-purple-600">↓</span>
             </button>
           </div>
           
-          {/* 透明度和显示模式控制 */}
-          <div className="flex gap-1">
+          {/* 透明度、线框模式和锁定控制 */}
+          <div className="flex gap-1.5 items-center">
             <div className="flex-1">
-              <div className="text-[8px] text-gray-500 mb-1">透明度</div>
+              <div className="text-[10px] text-gray-500 mb-1 font-medium">透明度</div>
               <input
                 type="range"
                 min="0"
                 max="100"
-                value={(model.opacity ?? 1) * 100}
-                onChange={(e) => {
-                  const opacity = parseInt(e.target.value) / 100;
-                  onUpdate(model.id, { opacity });
-                }}
-                className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                value={localOpacity}
+                onChange={(e) => handleOpacityChange(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <button
@@ -315,14 +356,28 @@ const ControlPanel: React.FC<{
                 const currentMode = model.wireframe ?? false;
                 onUpdate(model.id, { wireframe: !currentMode });
               }}
-              className={`p-2 border rounded transition-all touch-manipulation ${
+              className={`p-2.5 border rounded-lg transition-all touch-manipulation min-w-[48px] min-h-[48px] flex items-center justify-center active:scale-95 ${
                 model.wireframe 
                   ? 'bg-blue-500 border-blue-500 text-white' 
                   : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
               }`}
               title="线框模式"
             >
-              <Layers size={14} />
+              <Layers size={18} />
+            </button>
+            <button
+              onClick={() => {
+                const isLocked = model.locked ?? false;
+                onUpdate(model.id, { locked: !isLocked });
+              }}
+              className={`p-2.5 border rounded-lg transition-all touch-manipulation min-w-[48px] min-h-[48px] flex items-center justify-center active:scale-95 ${
+                model.locked 
+                  ? 'bg-red-500 border-red-500 text-white' 
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}
+              title={model.locked ? "解锁模型" : "锁定模型"}
+            >
+              {model.locked ? <Lock size={18} /> : <Unlock size={18} />}
             </button>
           </div>
         </div>
@@ -476,17 +531,16 @@ export const Controls: React.FC<ControlsProps> = ({ models, onUpdate, selectedId
         </div>
       )}
       
-      {/* 模型控制面板 - 增加底部安全距离，避免与浏览器底部区域重叠 */}
+      {/* 模型控制面板 - 移动端优化布局 */}
       <div 
-        className="absolute left-2 right-2 flex flex-row gap-2 pointer-events-none sm:left-4 sm:right-4 sm:gap-3" 
+        className="absolute left-0 right-0 flex flex-row gap-2 px-3 pointer-events-none sm:px-4 sm:gap-3" 
         style={{ 
-          // 移动端底部距离增加到 24px，桌面端 40px，避免与浏览器标签页切换区域重叠
-          bottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
-          paddingBottom: '0',
+          // 移动端底部距离，考虑安全区域和浏览器UI
+          bottom: 'max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px))',
         }}
       >
         {models.map((model) => (
-          <div key={model.id} className="flex-1 pointer-events-auto">
+          <div key={model.id} className="flex-1 pointer-events-auto max-w-[50%]">
             <ControlPanel 
               model={model} 
               onUpdate={onUpdate} 

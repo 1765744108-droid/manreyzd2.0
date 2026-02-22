@@ -1,10 +1,10 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useThree, ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, ContactShadows, Html, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import BuildingModel from './BuildingModel.tsx';
 import { ModelData } from '../types';
-import { COLORS, INITIAL_CAMERA_POSITION } from '../constants';
+import { COLORS, INITIAL_CAMERA_POSITION, CAMERA_CONFIG, GROUND_CONFIG, MOBILE_CONFIG, DESKTOP_CONFIG } from '../constants';
 import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
 
 // Interface for overlap information
@@ -45,22 +45,46 @@ interface SceneProps {
 }
 
 // Ground plane that handles deselection when clicked
+// 扩大交互区域，提升点击精度
 const Ground = ({ onDeselect }: { onDeselect: () => void }) => {
+  const clickTimeRef = useRef<number>(0);
+  const clickPosRef = useRef<{ x: number; y: number } | null>(null);
+  
+  const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
+    clickTimeRef.current = Date.now();
+    clickPosRef.current = { x: e.clientX, y: e.clientY };
+  }, []);
+  
+  const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
+    // 只有短按且无明显移动时才触发取消选择
+    const clickDuration = Date.now() - clickTimeRef.current;
+    const clickPos = clickPosRef.current;
+    
+    if (clickDuration < GROUND_CONFIG.CLICK_DURATION_THRESHOLD && clickPos) {
+      const moveDistance = Math.sqrt(
+        Math.pow(e.clientX - clickPos.x, 2) + 
+        Math.pow(e.clientY - clickPos.y, 2)
+      );
+      // 移动距离小于阈值才算有效点击
+      if (moveDistance < GROUND_CONFIG.CLICK_MOVE_THRESHOLD) {
+        e.stopPropagation();
+        onDeselect();
+      }
+    }
+    clickPosRef.current = null;
+  }, [onDeselect]);
+  
   return (
     <mesh 
-        rotation={[-Math.PI / 2, 0, 0]} 
-        position={[0, -0.01, 0]} 
-        receiveShadow
-        onPointerMissed={(e) => {
-          if (e.type === 'click') onDeselect();
-        }}
-        onClick={(e) => {
-            e.stopPropagation();
-            onDeselect();
-        }}
-        visible={false} // Hide ground completely but keep interaction
-      >
-        <planeGeometry args={[6, 6]} />
+      rotation={[-Math.PI / 2, 0, 0]} 
+      position={[0, -0.01, 0]} 
+      receiveShadow
+      onPointerDown={handlePointerDown}
+      onClick={handleClick}
+      visible={false}
+    >
+      {/* 扩大交互区域 */}
+      <planeGeometry args={[GROUND_CONFIG.INTERACTION_SIZE, GROUND_CONFIG.INTERACTION_SIZE]} />
       <meshStandardMaterial color={COLORS.ground} transparent opacity={0} side={THREE.DoubleSide} />
     </mesh>
   );
@@ -90,7 +114,7 @@ const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
     return null;
 }
 
-const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ models, onSelectModel, onUpdateModel, cameraControlsRef, shadowMapSize = 2048 }) => {
+const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: boolean }> = ({ models, onSelectModel, onUpdateModel, cameraControlsRef, shadowMapSize = 2048, isMobile = false }) => {
   const [isModelDragging, setIsModelDragging] = useState(false);
   const controlsRef = useRef<OrbitControlsType>(null);
   const { scene, gl } = useThree();
@@ -188,10 +212,10 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ model
         intensity={1.5}
         castShadow 
         shadow-mapSize={[shadowMapSize, shadowMapSize]}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={10}
-        shadow-camera-bottom={-10}
+        shadow-camera-left={-8}
+        shadow-camera-right={8}
+        shadow-camera-top={8}
+        shadow-camera-bottom={-8}
         shadow-camera-near={0.1}
         shadow-camera-far={50}
         shadow-bias={-0.0001}
@@ -204,25 +228,26 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ model
         castShadow={false}
       />
 
-      {/* Shape3D风格网格：细密斜线交叉网格 */}
+      {/* 地面网格：斜线交叉网格 - 加深颜色提升可见度 */}
       <gridHelper 
-        args={[20, 40, '#d0d0d0', '#d8d8d8']} 
+        args={[12, 24, '#888888', '#999999']} 
         position={[0, 0, 0]} 
         rotation={[0, Math.PI / 4, 0]}
       >
-        <lineBasicMaterial attach="material" color="#d0d0d0" transparent opacity={0.5} />
+        <lineBasicMaterial attach="material" color="#888888" transparent opacity={0.8} />
       </gridHelper>
-      
-      {/* 底部网格：水平网格 */}
+            
+      {/* 底部网格：水平网格 - 加深颜色提升可见度 */}
       <gridHelper 
-        args={[20, 20, '#d0d0d0', '#e0e0e0']} 
+        args={[12, 12, '#777777', '#aaaaaa']} 
         position={[0, 0, 0]}
       >
-        <lineBasicMaterial attach="material" color="#d0d0d0" transparent opacity={0.4} />
+        <lineBasicMaterial attach="material" color="#777777" transparent opacity={0.7} />
       </gridHelper>
       <Ground onDeselect={() => onSelectModel(null)} />
       
-      <ContactShadows resolution={1024} scale={50} blur={2} opacity={0.5} far={10} color="#000000" />
+      {/* 移动端禁用ContactShadows提升性能 */}
+      {!isMobile && <ContactShadows resolution={1024} scale={20} blur={2} opacity={0.5} far={10} color="#000000" />}
       
       {/* 加载进度显示 */}
       <Loader />
@@ -239,20 +264,24 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number }> = ({ model
         />
       ))}
 
-      {/* OrbitControls handles Global Pan (2 fingers) and Rotate (1 finger) when not interacting with a model */}
+      {/* OrbitControls - 极致性能优化配置 */}
       <OrbitControls 
         ref={controlsRef}
         makeDefault 
-        minPolarAngle={0} 
-        maxPolarAngle={Math.PI} 
-        enableDamping={true}
-        dampingFactor={0.08}
-        rotateSpeed={0.8}
-        zoomSpeed={0.8}
-        panSpeed={0.8}
+        minPolarAngle={CAMERA_CONFIG.MIN_POLAR_ANGLE} 
+        maxPolarAngle={CAMERA_CONFIG.MAX_POLAR_ANGLE} 
+        enableDamping={false}  // 关闭阻尼，实现即时响应
+        rotateSpeed={CAMERA_CONFIG.ROTATE_SPEED}
+        zoomSpeed={CAMERA_CONFIG.ZOOM_SPEED}
+        panSpeed={CAMERA_CONFIG.PAN_SPEED}
         enablePan={!isModelDragging}
         enableZoom={!isModelDragging}
         enableRotate={!isModelDragging}
+        mouseButtons={{
+          LEFT: THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.PAN
+        }}
         touches={{
           ONE: THREE.TOUCH.ROTATE,
           TWO: THREE.TOUCH.DOLLY_PAN
@@ -272,28 +301,28 @@ export const Scene: React.FC<SceneProps> = (props) => {
   );
   
   // 移动端降低 dpr 和阴影质量
-  const dpr: [number, number] = isMobile ? [1, 1.5] : [1, 2];
-  const shadowMapSize = isMobile ? 1024 : 2048;
+  const dpr = isMobile ? MOBILE_CONFIG.DPR : DESKTOP_CONFIG.DPR;
+  const shadowMapSize = isMobile ? MOBILE_CONFIG.SHADOW_MAP_SIZE : DESKTOP_CONFIG.SHADOW_MAP_SIZE;
   
   return (
     <Canvas
-      shadows="soft" // 柔和阴影
+      shadows="soft"
       camera={{ position: INITIAL_CAMERA_POSITION, fov: 45 }}
       style={{ background: COLORS.background, touchAction: 'none' }}
       dpr={dpr}
-      performance={{ min: 0.5 }} // 自动降级性能
-      frameloop="demand" // 仅在需要时重渲染
+      performance={{ min: 0.5 }}
+      frameloop="always" // 始终渲染，确保拖拽流畅
       gl={{
-        antialias: true, // 启用抗锯齿，消除边缘锯齿
-        alpha: false, // 禁用透明度，提高性能
-        toneMapping: THREE.ACESFilmicToneMapping, // 电影色调映射，增强真实感
-        toneMappingExposure: 1.0, // 降低曝光度
-        outputColorSpace: THREE.SRGBColorSpace, // 标准颜色空间
-        // 透明物体排序优化
+        antialias: !isMobile, // 移动端关闭抗锯齿提升性能
+        alpha: false,
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.0,
+        outputColorSpace: THREE.SRGBColorSpace,
         sortObjects: true,
+        powerPreference: 'high-performance', // 优先使用高性能GPU
       }}
     >
-      <SceneContent {...props} shadowMapSize={shadowMapSize} />
+      <SceneContent {...props} shadowMapSize={shadowMapSize} isMobile={isMobile} />
     </Canvas>
   );
 };

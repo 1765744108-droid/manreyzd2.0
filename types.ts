@@ -18,9 +18,21 @@ export interface ModelData {
   };
   // 显示模式
   wireframe?: boolean;  // 线框模式
+  // 模型锁定
+  locked?: boolean;     // 是否锁定（禁止拖拽）
 }
 
 export interface DragState {
   isDragging: boolean;
   mode: 'rotate' | 'move' | null;
 }
+
+// 撤销/重做历史记录
+export interface HistoryState {
+  models: ModelData[];
+  timestamp: number;
+  action: string;
+}
+
+// 视角预设类型
+export type CameraPreset = 'front' | 'top' | 'side' | 'back' | 'iso';

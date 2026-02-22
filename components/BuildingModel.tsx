@@ -3,7 +3,7 @@ import { useThree, useFrame, ThreeEvent } from '@react-three/fiber';
 import { useGLTF, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { ModelData } from '../types';
-import { COLORS } from '../constants';
+import { COLORS, DRAG_CONFIG, ANIMATION_CONFIG, WIREFRAME_CONFIG, MATERIAL_CONFIG } from '../constants';
 import { OverlapInfo } from './Scene.tsx';
 
 // 预加载模型 - 提升首次加载速度
@@ -104,12 +104,13 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   const otherPart = data.otherPartUrl ? useGLTF(data.otherPartUrl) : null;
   
   const groupRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-  const [wireframeCount, setWireframeCount] = useState(0); // 线框计数器
+  // 性能优化：使用 useRef 管理 hover 状态，避免重渲染
+  const hoveredRef = useRef(false);
   
   // 性能优化：使用 useRef 管理旋转状态，避免频繁重渲染
   const currentRotationRef = useRef<[number, number, number]>(data.rotation);
   const targetRotationRef = useRef<[number, number, number]>(data.rotation);
+  const isAnimatingRef = useRef(false);  // 动画状态标记，避免空转
   
   // 性能优化：使用 useRef 跟踪实时位置，避免状态更新延迟
   const positionRef = useRef<[number, number, number]>(data.position);
@@ -121,6 +122,15 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     move: ((e: PointerEvent) => void) | null;
     up: (() => void) | null;
   }>({ move: null, up: null });
+  
+  // 拖拽相关的持久化引用（避免闭包重建）
+  const dragContextRef = useRef<{
+    rightOnPlane: THREE.Vector3;
+    upOnPlane: THREE.Vector3;
+    moveSpeed: number;
+    boundaryMin: number;
+    boundaryMax: number;
+  } | null>(null);
   
   // 同步 positionRef
   useEffect(() => {
@@ -156,10 +166,19 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   // Update target rotation when data.rotation changes
   useEffect(() => {
     targetRotationRef.current = data.rotation;
+    // 检查是否需要动画
+    const current = currentRotationRef.current;
+    const target = data.rotation;
+    if (current[0] !== target[0] || current[1] !== target[1] || current[2] !== target[2]) {
+      isAnimatingRef.current = true;
+    }
   }, [data.rotation]);
   
   // Smooth rotation animation using useFrame - 极致性能优化版
   useFrame((state, delta) => {
+    // 快速跳过检查：如果没有动画在进行，直接返回
+    if (!isAnimatingRef.current) return;
+    
     const current = currentRotationRef.current;
     const target = targetRotationRef.current;
     
@@ -167,27 +186,41 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     const needsUpdate = current[0] !== target[0] || current[1] !== target[1] || current[2] !== target[2];
     
     if (needsUpdate && groupRef.current) {
-      // 动态缓动系数，根据帧率调整
-      const easeFactor = Math.min(10 * delta, 0.3);
+      // 动态缓动系数，提升动画速度（更快的缓动）
+      const easeFactor = Math.min(12 * delta, 0.35);
       const newX = current[0] + (target[0] - current[0]) * easeFactor;
       const newY = current[1] + (target[1] - current[1]) * easeFactor;
       const newZ = current[2] + (target[2] - current[2]) * easeFactor;
       
       // 直接更新ref，不触发重渲染
-      const threshold = 0.001;
+      const threshold = ANIMATION_CONFIG.ROTATION_THRESHOLD;
       if (Math.abs(target[0] - newX) > threshold ||
           Math.abs(target[1] - newY) > threshold ||
           Math.abs(target[2] - newZ) > threshold) {
         currentRotationRef.current = [newX, newY, newZ];
       } else {
         currentRotationRef.current = target;
+        isAnimatingRef.current = false;  // 动画完成，停止循环
       }
       
-      // 直接更新Three.js对象，完全跳过React
-      const rotationGroup = groupRef.current.children[0];
-      if (rotationGroup) {
-        rotationGroup.rotation.y = currentRotationRef.current[1];
+      // 直接更新Three.js对象
+      // 结构：groupRef > yRotationGroup > positionGroup > xzRotationGroup
+      const yRotationGroup = groupRef.current.children[0]; // Y轴旋转组
+      if (yRotationGroup) {
+        yRotationGroup.rotation.y = currentRotationRef.current[1];
+        
+        // X轴和Z轴旋转在嵌套的group中
+        const positionGroup = yRotationGroup.children[0];
+        if (positionGroup) {
+          const xzRotationGroup = positionGroup.children[0];
+          if (xzRotationGroup) {
+            xzRotationGroup.rotation.x = currentRotationRef.current[0];
+            xzRotationGroup.rotation.z = currentRotationRef.current[2];
+          }
+        }
       }
+    } else {
+      isAnimatingRef.current = false;  // 无需更新，停止动画
     }
   });
 
@@ -317,9 +350,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
             mat.blending = THREE.NormalBlending;
               
             if (mat instanceof THREE.MeshStandardMaterial) {
-              mat.roughness = 0.35;
-              mat.metalness = 0.15;
-              mat.envMapIntensity = 1.8;
+              mat.roughness = MATERIAL_CONFIG.ROUGHNESS;
+              mat.metalness = MATERIAL_CONFIG.METALNESS;
+              mat.envMapIntensity = MATERIAL_CONFIG.ENV_MAP_INTENSITY;
               mat.flatShading = false;
             }
               
@@ -362,24 +395,29 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
               return;
             }
             
-            const edges = new THREE.EdgesGeometry(child.geometry, 15);
+            // 降低角度阈值，显示更多边缘
+            const edges = new THREE.EdgesGeometry(child.geometry, WIREFRAME_CONFIG.EDGE_ANGLE_THRESHOLD);
+            
+            // 根据模型ID设置不同的线框颜色
+            const wireframeColor = modelId === 'model-2' ? COLORS.wireframe2 : COLORS.wireframe1;
               
             const lineMaterial = new THREE.LineBasicMaterial({ 
-              color: '#000000',
+              color: wireframeColor,
               transparent: false,
               opacity: 1.0,
               depthTest: true,
-              depthWrite: false
+              depthWrite: false,
+              linewidth: WIREFRAME_CONFIG.LINE_WIDTH
             });
             const wireframe = new THREE.LineSegments(edges, lineMaterial);
             wireframe.userData.isWireframeOverlay = true;
             wireframe.userData.meshId = meshId;
-            wireframe.renderOrder = 10000;
+            // 锚定模型线框渲染顺序更高，确保显示在最前面
+            wireframe.renderOrder = modelId === 'model-2' ? WIREFRAME_CONFIG.RENDER_ORDER_BASE + 1 : WIREFRAME_CONFIG.RENDER_ORDER_BASE;
             child.add(wireframe);
               
             // 记录已创建线框
             wireframesCreatedRef.current.add(meshId);
-            console.log(`[${modelId}] Created wireframe for mesh:`, meshId);
           } catch (e) {
             console.warn('Failed to create wireframe for mesh:', meshId, e);
           }
@@ -422,7 +460,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     // 清空线框记录（模型变化时）
     wireframesCreatedRef.current.clear();
     
-    // 立即应用材质和线框
+    // 立即应用材质和线框（移除延迟，提升性能）
     setupMaterials(rectangularClone, true);
     setupMaterials(otherClone, false);
     
@@ -430,10 +468,6 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     if (groupRef.current) {
       groupRef.current.updateMatrixWorld(true);
     }
-    
-    // 调试：输出线框创建状态
-    console.log(`[${data.id}] Wireframes created:`, wireframesCreatedRef.current.size);
-    setWireframeCount(wireframesCreatedRef.current.size);
   }, [rectangularClone, otherClone, setupMaterials, data.wireframe, data.id]);
 
   // 单独处理透明度变化，不重建线框
@@ -461,125 +495,129 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果
 
   // 拖拽处理 - 极致性能优化，完全跳过React状态更新
+  // 全局移动处理器（用useCallback缓存，避免重建）
+  const handleGlobalMove = useCallback((moveEvent: PointerEvent) => {
+    if (!isDraggingRef.current || !lastPointerPosRef.current || !groupRef.current || !dragContextRef.current) return;
+      
+    const { rightOnPlane, upOnPlane, moveSpeed, boundaryMin, boundaryMax } = dragContextRef.current;
+      
+    // 计算屏幕空间移动增量
+    const deltaX = moveEvent.clientX - lastPointerPosRef.current.x;
+    const deltaY = moveEvent.clientY - lastPointerPosRef.current.y;
+      
+    // 立即更新指针位置
+    lastPointerPosRef.current = { x: moveEvent.clientX, y: moveEvent.clientY };
+      
+    // 忽略微小移动
+    if (Math.abs(deltaX) < DRAG_CONFIG.MIN_MOVE_THRESHOLD && Math.abs(deltaY) < DRAG_CONFIG.MIN_MOVE_THRESHOLD) return;
+      
+    // 计算世界空间移动
+    const worldDeltaX = (rightOnPlane.x * deltaX - upOnPlane.x * deltaY) * moveSpeed;
+    const worldDeltaZ = (rightOnPlane.z * deltaX - upOnPlane.z * deltaY) * moveSpeed;
+      
+    // 获取当前位置并计算新位置
+    const currentPos = positionRef.current;
+    const newX = Math.max(boundaryMin, Math.min(boundaryMax, currentPos[0] + worldDeltaX));
+    const newZ = Math.max(boundaryMin, Math.min(boundaryMax, currentPos[2] + worldDeltaZ));
+      
+    // 更新ref
+    positionRef.current = [newX, currentPos[1], newZ];
+      
+    // 极致性能：直接操作Three.js对象位置
+    groupRef.current.position.x = newX;
+    groupRef.current.position.z = newZ;
+  }, []);
+    
+  // 全局抬起处理器
+  const handleGlobalUp = useCallback(() => {
+    if (!isDraggingRef.current) return;
+      
+    isDraggingRef.current = false;
+    lastPointerPosRef.current = null;
+    dragContextRef.current = null;
+      
+    // 拖拽结束时同步一次状态到React
+    if (groupRef.current) {
+      const finalPosition: [number, number, number] = [
+        groupRef.current.position.x,
+        groupRef.current.position.y,
+        groupRef.current.position.z
+      ];
+      positionRef.current = finalPosition;
+      onUpdate(data.id, { position: finalPosition });
+    }
+      
+    onDragEnd?.();
+      
+    // 移除全局事件监听器
+    if (globalHandlersRef.current.move) {
+      window.removeEventListener('pointermove', globalHandlersRef.current.move);
+    }
+    window.removeEventListener('pointerup', handleGlobalUp);
+    window.removeEventListener('pointercancel', handleGlobalUp);
+    globalHandlersRef.current = { move: null, up: null };
+  }, [data.id, onUpdate, onDragEnd]);
+    
   const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
-    
+      
     // 选中模型
     if (!data.selected) {
       onSelect(data.id);
     }
     
+    // 如果模型被锁定，不允许拖拽
+    if (data.locked) {
+      return;
+    }
+      
     // 开始拖拽
     isDraggingRef.current = true;
     lastPointerPosRef.current = { x: e.clientX, y: e.clientY };
     onDragStart?.();
-    
-    // 从相机矩阵直接提取方向向量（最可靠的方法）
+      
+    // 从相机矩阵直接提取方向向量
     camera.updateMatrixWorld();
     const m = camera.matrixWorld.elements;
-    
-    // 相机右向量（屏幕X方向）- 矩阵第一列
+      
     const cameraRight = new THREE.Vector3(m[0], m[1], m[2]).normalize();
-    
-    // 相机上向量（屏幕Y方向）- 矩阵第二列
     const cameraUp = new THREE.Vector3(m[4], m[5], m[6]).normalize();
-    
-    // 将向量投影到XZ平面（模型只在地面上移动）
+      
+    // 将向量投影到XZ平面
     const rightOnPlane = new THREE.Vector3(cameraRight.x, 0, cameraRight.z);
     const upOnPlane = new THREE.Vector3(cameraUp.x, 0, cameraUp.z);
-    
-    // 处理俯视角度
+      
     const rightLen = rightOnPlane.length();
     const upLen = upOnPlane.length();
-    
-    if (rightLen > 0.01) {
-      rightOnPlane.divideScalar(rightLen);
-    } else {
-      rightOnPlane.set(1, 0, 0);
-    }
-    
-    if (upLen > 0.01) {
-      upOnPlane.divideScalar(upLen);
-    } else {
-      upOnPlane.set(0, 0, -1);
-    }
-    
+      
+    if (rightLen > 0.01) rightOnPlane.divideScalar(rightLen);
+    else rightOnPlane.set(1, 0, 0);
+      
+    if (upLen > 0.01) upOnPlane.divideScalar(upLen);
+    else upOnPlane.set(0, 0, -1);
+      
     // 计算移动缩放系数
     const cameraDistance = camera.position.length();
-    const baseMoveSpeed = 0.012;
-    const distanceFactor = Math.max(0.5, Math.min(2, cameraDistance / 10));
-    const moveSpeed = baseMoveSpeed * distanceFactor;
-    
-    // 边界限制常量
-    const GRID_SIZE = 6;
-    const BOUNDARY_MIN = -GRID_SIZE / 2;
-    const BOUNDARY_MAX = GRID_SIZE / 2;
-    
-    // 极致性能：直接操作Three.js对象，完全不触发React更新
-    const handleGlobalMove = (moveEvent: PointerEvent) => {
-      if (!isDraggingRef.current || !lastPointerPosRef.current || !groupRef.current) return;
+    const distanceFactor = Math.max(DRAG_CONFIG.MIN_DISTANCE_FACTOR, Math.min(DRAG_CONFIG.MAX_DISTANCE_FACTOR, cameraDistance / DRAG_CONFIG.DISTANCE_REFERENCE));
+    const moveSpeed = DRAG_CONFIG.BASE_MOVE_SPEED * distanceFactor;
       
-      // 计算屏幕空间移动增量
-      const deltaX = moveEvent.clientX - lastPointerPosRef.current.x;
-      const deltaY = moveEvent.clientY - lastPointerPosRef.current.y;
-      
-      // 立即更新指针位置
-      lastPointerPosRef.current = { x: moveEvent.clientX, y: moveEvent.clientY };
-      
-      // 忽略微小移动
-      if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
-      
-      // 计算世界空间移动
-      const worldDeltaX = (rightOnPlane.x * deltaX - upOnPlane.x * deltaY) * moveSpeed;
-      const worldDeltaZ = (rightOnPlane.z * deltaX - upOnPlane.z * deltaY) * moveSpeed;
-      
-      // 获取当前位置并计算新位置
-      const currentPos = positionRef.current;
-      const newX = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[0] + worldDeltaX));
-      const newZ = Math.max(BOUNDARY_MIN, Math.min(BOUNDARY_MAX, currentPos[2] + worldDeltaZ));
-      
-      // 更新ref
-      positionRef.current = [newX, currentPos[1], newZ];
-      
-      // 极致性能：直接操作Three.js对象位置，完全跳过React
-      groupRef.current.position.x = newX;
-      groupRef.current.position.z = newZ;
+    // 保存拖拽上下文到ref
+    dragContextRef.current = {
+      rightOnPlane,
+      upOnPlane,
+      moveSpeed,
+      boundaryMin: DRAG_CONFIG.BOUNDARY_MIN,
+      boundaryMax: DRAG_CONFIG.BOUNDARY_MAX
     };
-    
-    const handleGlobalUp = () => {
-      if (!isDraggingRef.current) return;
       
-      isDraggingRef.current = false;
-      lastPointerPosRef.current = null;
-      globalHandlersRef.current = { move: null, up: null };
-      
-      // 拖拽结束时同步一次状态到React
-      if (groupRef.current) {
-        const finalPosition: [number, number, number] = [
-          groupRef.current.position.x,
-          groupRef.current.position.y,
-          groupRef.current.position.z
-        ];
-        positionRef.current = finalPosition;
-        onUpdate(data.id, { position: finalPosition });
-      }
-      
-      onDragEnd?.();
-      
-      // 移除全局事件监听器
-      window.removeEventListener('pointermove', handleGlobalMove);
-      window.removeEventListener('pointerup', handleGlobalUp);
-      window.removeEventListener('pointercancel', handleGlobalUp);
-    };
-    
     // 保存事件处理器引用
     globalHandlersRef.current = { move: handleGlobalMove, up: handleGlobalUp };
-    
+      
     // 添加全局事件监听器 - 使用 passive 提高性能
     window.addEventListener('pointermove', handleGlobalMove, { passive: true });
     window.addEventListener('pointerup', handleGlobalUp);
     window.addEventListener('pointercancel', handleGlobalUp);
-  }, [data.selected, data.id, onSelect, onDragStart, onDragEnd, onUpdate, camera]);
+  }, [data.selected, data.id, data.locked, onSelect, onDragStart, camera, handleGlobalMove, handleGlobalUp]);
 
   const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
     // 只有在没有拖拽时才触发点击
@@ -603,8 +641,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       scale={data.scale}
       onPointerDown={handlePointerDown}
       onClick={handleClick}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
+      onPointerOver={() => { hoveredRef.current = true; }}
+      onPointerOut={() => { hoveredRef.current = false; }}
     >
       {/* Y轴旋转（顺时针）使用原点为中心 */}
       <group rotation={[0, rotation[1], 0]}>
@@ -634,35 +672,15 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           </group>
         </group>
       </group>      
-      {/* Visual Feedback: Selection Outline */}
-      {(data.selected) && (
-        <Outlines 
-          thickness={3} 
-          color={COLORS.selection} 
-          screenspace={true}
-          opacity={1}
-          transparent={false}
-          angle={0}
-        />
-      )}
-      
-      {/* Hover Outline (lighter) */}
-      {(!data.selected && hovered) && (
+      {/* Visual Feedback: Selection Outline - 简化以提升性能 */}
+      {data.selected && (
         <Outlines 
           thickness={2} 
-          color="#9ca3af" 
-          screenspace={true} 
-          opacity={0.5} 
+          color={COLORS.selection} 
+          screenspace={true}
+          opacity={0.8}
         />
       )}
-      
-      {/* 调试信息：线框计数 */}
-      <group position={[0, 4, 0]}>
-        <mesh>
-          <planeGeometry args={[1.5, 0.4]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={0.9} />
-        </mesh>
-      </group>
     </group>
   );
 };

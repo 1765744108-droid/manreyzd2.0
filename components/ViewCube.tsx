@@ -1,9 +1,10 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGesture } from '@use-gesture/react';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
+import { MOBILE_CONFIG, DESKTOP_CONFIG } from '../constants';
 
 interface ViewCubeProps {
   mainCameraControlsRef: React.MutableRefObject<OrbitControlsType | null>;
@@ -252,32 +253,39 @@ const ViewCubeContent: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     };
   }, []);
 
-  // 立方体面的文字材质 - Shape3D风格：白色立方体+黑色粗体文字
-  const createTextTexture = (text: string, bgColor: string, isActive: boolean) => {
+  // 立方体面的文字材质 - 高清晰度版本
+  const createTextTexture = useCallback((text: string, bgColor: string, isActive: boolean) => {
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
+    canvas.width = 512;  // 提升分辨率
+    canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
+    
+    // 启用抗锯齿
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
-    // 背景 - Shape3D风格：纯白色或浅蓝色激活态
+    // 背景
     ctx.fillStyle = isActive ? '#e3f2fd' : '#ffffff';
-    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillRect(0, 0, 512, 512);
 
-    // 边框 - Shape3D风格：细线条边框
-    ctx.strokeStyle = isActive ? '#1976d2' : '#cccccc';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(0, 0, 256, 256);
+    // 边框 - 加粗
+    ctx.strokeStyle = isActive ? '#1976d2' : '#999999';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(0, 0, 512, 512);
 
-    // 文字 - Shape3D风格：黑色粗体汉字
+    // 文字 - 加大加粗
     ctx.fillStyle = '#000000';
-    ctx.font = 'bold 100px "Microsoft YaHei", "PingFang SC", sans-serif';
+    ctx.font = 'bold 200px "Microsoft YaHei", "PingFang SC", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, 128, 128);
+    ctx.fillText(text, 256, 256);
 
     const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = 16;
     return texture;
-  };
+  }, []);
 
   // 6个面的配置 - Shape3D风格：纯白色底色
   const faces = [
@@ -445,8 +453,8 @@ const AxisLabels: React.FC = () => {
     return (text: string, color: string) => {
       // 使用更高分辨率的canvas，提升清晰度
       const canvas = document.createElement('canvas');
-      canvas.width = 256;  // 提升到256
-      canvas.height = 256;
+      canvas.width = 512;  // 提升到512
+      canvas.height = 512;
       const ctx = canvas.getContext('2d')!;
       
       // 启用抗锯齿
@@ -454,41 +462,41 @@ const AxisLabels: React.FC = () => {
       ctx.imageSmoothingQuality = 'high';
       
       // 透明背景
-      ctx.clearRect(0, 0, 256, 256);
+      ctx.clearRect(0, 0, 512, 512);
       
       // 设置字体 - 更粗更大
-      ctx.font = 'bold 160px Arial, sans-serif';  // 加大字号
+      ctx.font = 'bold 320px Arial, sans-serif';  // 加大字号
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
       // 第一层：最外层深色描边（加强对比度）
       ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 20;  // 加粗描边
-      ctx.strokeText(text, 128, 128);
+      ctx.lineWidth = 40;  // 加粗描边
+      ctx.strokeText(text, 256, 256);
       
       // 第二层：中间层描边
       ctx.strokeStyle = '#222222';
-      ctx.lineWidth = 14;
-      ctx.strokeText(text, 128, 128);
+      ctx.lineWidth = 28;
+      ctx.strokeText(text, 256, 256);
       
       // 第三层：内层描边
       ctx.strokeStyle = '#444444';
-      ctx.lineWidth = 8;
-      ctx.strokeText(text, 128, 128);
+      ctx.lineWidth = 16;
+      ctx.strokeText(text, 256, 256);
       
       // 填充纯白色字母
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(text, 128, 128);
+      ctx.fillText(text, 256, 256);
       
       // 添加彩色高光层，增强识别度
-      ctx.globalAlpha = 0.5;  // 提高不透明度
+      ctx.globalAlpha = 0.6;
       ctx.fillStyle = color;
-      ctx.fillText(text, 128, 128);
+      ctx.fillText(text, 256, 256);
       
       const texture = new THREE.CanvasTexture(canvas);
-      texture.minFilter = THREE.LinearFilter;  // 优化缩小时的渲染
-      texture.magFilter = THREE.LinearFilter;  // 优化放大时的渲染
-      texture.anisotropy = 16;  // 最大各向异性过滤
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.anisotropy = 16;
       
       return texture;
     };
@@ -584,43 +592,80 @@ const AxisLabels: React.FC = () => {
   );
 };
 
-// ViewCube 外层容器组件 - 响应式布局优化
+// ViewCube 外层容器组件 - 移动端优先设计
 export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => {
   // 检测是否为移动设备
   const [isMobile, setIsMobile] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);  // 折叠状态
+  const [isLandscape, setIsLandscape] = useState(false);  // 横屏状态
   
   useEffect(() => {
-    const checkMobile = () => {
+    const checkDevice = () => {
       const mobile = window.innerWidth <= 768 || 'ontouchstart' in window;
+      const landscape = window.innerWidth > window.innerHeight;
       setIsMobile(mobile);
+      setIsLandscape(landscape);
+      // 移动端横屏默认折叠
+      if (mobile && landscape) {
+        setIsCollapsed(true);
+      }
     };
     
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    window.addEventListener('orientationchange', checkDevice);
+    return () => {
+      window.removeEventListener('resize', checkDevice);
+      window.removeEventListener('orientationchange', checkDevice);
+    };
   }, []);
   
-  // 移动端尺寸更大，提高可操作性
-  // 容器尺寸缩小，但保持3D立方体视觉大小不变
-  const cubeSize = isMobile ? 100 : 90;  // 容器尺寸缩小约30%
+  // 移动端尺寸更小，节省屏幕空间
+  const cubeSize = isMobile ? MOBILE_CONFIG.VIEWCUBE_SIZE : DESKTOP_CONFIG.VIEWCUBE_SIZE;
+  
+  // 折叠状态切换
+  const toggleCollapse = useCallback(() => {
+    setIsCollapsed(prev => !prev);
+  }, []);
+  
+  // 折叠时只显示小按钮 - 移动端优化
+  if (isCollapsed) {
+    return (
+      <button
+        onClick={toggleCollapse}
+        className="absolute pointer-events-auto bg-white/95 backdrop-blur rounded-xl shadow-lg p-3 hover:bg-gray-50 active:scale-95 transition-all touch-manipulation"
+        style={{
+          top: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))',
+          right: 'max(12px, env(safe-area-inset-right, 8px))',
+          zIndex: 50,
+          minWidth: '48px',
+          minHeight: '48px',
+        }}
+        title="展开导航立方体"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        </svg>
+      </button>
+    );
+  }
   
   return (
     <div 
       className="absolute pointer-events-auto"
       style={{ 
-        // 固定在右上角，紧贴顶部和右侧边缘
-        top: 'max(8px, env(safe-area-inset-top, 8px))',  // 顶部边距缩小
-        right: 'max(8px, env(safe-area-inset-right, 8px))',  // 右侧边距缩小
-        // 响应式尺寸：容器缩小但保持立方体视觉比例
+        // 固定在右上角，考虑安全区域
+        top: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))',
+        right: 'max(12px, env(safe-area-inset-right, 8px))',
+        // 响应式尺寸
         width: `${cubeSize}px`,
         height: `${cubeSize}px`,
         cursor: 'grab', 
         userSelect: 'none',
         WebkitUserSelect: 'none',
-        // 确保不被其他元素遮挡
         zIndex: 50,
         // 移动端触摸优化
-        touchAction: 'pan-y pan-x',  // 允许滚动但阻止缩放
+        touchAction: 'none',
         WebkitTouchCallout: 'none',
       }}
       onTouchStart={(e) => {
@@ -635,18 +680,18 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
         }}
         style={{ 
           background: 'transparent',
-          borderRadius: '0',
-          boxShadow: 'none',
-          border: 'none',
+          borderRadius: '12px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
         }}
         gl={{ 
           preserveDrawingBuffer: true, 
-          antialias: true,
+          antialias: false, // 关闭抗锯齿提升性能
           alpha: true,
-          // 高质量渲染设置
-          powerPreference: 'high-performance'
+          powerPreference: 'low-power' // 使用低功耗模式，避免与主场景竞争GPU
         }}
-        dpr={[1, 2]}  // 设备像素比，支持Retina屏幕
+        dpr={[1, 1.5]}  // 降低像素比提升性能
+        frameloop="always"
+        performance={{ min: 0.5 }}
         // 移动端触摸优化
         events={(store) => ({
           ...store,
@@ -670,6 +715,24 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
         <directionalLight position={[-3, -3, -3]} intensity={0.3} />
         <ViewCubeContent mainCameraControlsRef={mainCameraControlsRef} />
       </Canvas>
+      
+      {/* 折叠按钮 - 移动端优化 */}
+      <button
+        onClick={toggleCollapse}
+        className="absolute -bottom-1 -right-1 bg-white rounded-full shadow-md p-1.5 hover:bg-gray-100 active:scale-95 transition-all touch-manipulation"
+        style={{
+          minWidth: '28px',
+          minHeight: '28px',
+        }}
+        title="收起导航立方体"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="4 14 10 14 10 20"/>
+          <polyline points="20 10 14 10 14 4"/>
+          <line x1="14" y1="10" x2="21" y2="3"/>
+          <line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+      </button>
     </div>
   );
 };
