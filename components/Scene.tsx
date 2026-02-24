@@ -44,35 +44,56 @@ interface SceneProps {
   cameraControlsRef?: React.MutableRefObject<OrbitControlsType | null>;
 }
 
+// 移动端检测工具函数
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         window.innerWidth < 768 ||
+         'ontouchstart' in window;
+};
+
 // Ground plane that handles deselection when clicked
-// 扩大交互区域，提升点击精度
+// 优化点击检测，移动端使用更大容差
 const Ground = ({ onDeselect }: { onDeselect: () => void }) => {
   const clickTimeRef = useRef<number>(0);
   const clickPosRef = useRef<{ x: number; y: number } | null>(null);
+  const isMobile = useMemo(() => isMobileDevice(), []);
   
   const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
     clickTimeRef.current = Date.now();
-    clickPosRef.current = { x: e.clientX, y: e.clientY };
+    // 移动端使用 touch 坐标
+    const x = e.nativeEvent.offsetX ?? e.clientX;
+    const y = e.nativeEvent.offsetY ?? e.clientY;
+    clickPosRef.current = { x, y };
   }, []);
   
   const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
-    // 只有短按且无明显移动时才触发取消选择
     const clickDuration = Date.now() - clickTimeRef.current;
     const clickPos = clickPosRef.current;
     
-    if (clickDuration < GROUND_CONFIG.CLICK_DURATION_THRESHOLD && clickPos) {
+    // 移动端使用更宽松的阈值
+    const durationThreshold = isMobile 
+      ? GROUND_CONFIG.MOBILE_CLICK_DURATION 
+      : GROUND_CONFIG.CLICK_DURATION_THRESHOLD;
+    const moveThreshold = isMobile 
+      ? GROUND_CONFIG.MOBILE_CLICK_THRESHOLD 
+      : GROUND_CONFIG.CLICK_MOVE_THRESHOLD;
+    
+    if (clickDuration < durationThreshold && clickPos) {
+      const x = e.nativeEvent.offsetX ?? e.clientX;
+      const y = e.nativeEvent.offsetY ?? e.clientY;
       const moveDistance = Math.sqrt(
-        Math.pow(e.clientX - clickPos.x, 2) + 
-        Math.pow(e.clientY - clickPos.y, 2)
+        Math.pow(x - clickPos.x, 2) + 
+        Math.pow(y - clickPos.y, 2)
       );
-      // 移动距离小于阈值才算有效点击
-      if (moveDistance < GROUND_CONFIG.CLICK_MOVE_THRESHOLD) {
+      
+      if (moveDistance < moveThreshold) {
         e.stopPropagation();
         onDeselect();
       }
     }
     clickPosRef.current = null;
-  }, [onDeselect]);
+  }, [onDeselect, isMobile]);
   
   return (
     <mesh 
@@ -295,31 +316,43 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: b
 
 export const Scene: React.FC<SceneProps> = (props) => {
   // 移动端性能优化：检测设备类型
-  const isMobile = typeof window !== 'undefined' && (
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-    window.innerWidth < 768
-  );
+  const isMobile = useMemo(() => isMobileDevice(), []);
   
-  // 移动端降低 dpr 和阴影质量
-  const dpr = isMobile ? MOBILE_CONFIG.DPR : DESKTOP_CONFIG.DPR;
+  // 动态计算最佳DPR - 平衡清晰度与性能
+  const dpr = useMemo(() => {
+    if (typeof window === 'undefined') return isMobile ? MOBILE_CONFIG.DPR : DESKTOP_CONFIG.DPR;
+    
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    if (isMobile) {
+      // 移动端：基于设备像素比动态调整，不超过最大限制
+      const maxDpr = Math.min(devicePixelRatio, MOBILE_CONFIG.MAX_PIXEL_RATIO);
+      return [Math.max(1.5, maxDpr * 0.75), maxDpr] as [number, number];
+    }
+    return DESKTOP_CONFIG.DPR;
+  }, [isMobile]);
+  
   const shadowMapSize = isMobile ? MOBILE_CONFIG.SHADOW_MAP_SIZE : DESKTOP_CONFIG.SHADOW_MAP_SIZE;
   
   return (
     <Canvas
-      shadows="soft"
+      shadows={isMobile ? "basic" : "soft"} // 移动端使用基础阴影提升性能
       camera={{ position: INITIAL_CAMERA_POSITION, fov: 45 }}
       style={{ background: COLORS.background, touchAction: 'none' }}
       dpr={dpr}
       performance={{ min: 0.5 }}
-      frameloop="always" // 始终渲染，确保拖拽流畅
+      frameloop="always"
       gl={{
-        antialias: !isMobile, // 移动端关闭抗锯齿提升性能
+        antialias: true, // 移动端也启用抗锯齿，显著提升清晰度
         alpha: false,
         toneMapping: THREE.ACESFilmicToneMapping,
         toneMappingExposure: 1.0,
         outputColorSpace: THREE.SRGBColorSpace,
         sortObjects: true,
-        powerPreference: 'high-performance', // 优先使用高性能GPU
+        powerPreference: 'high-performance',
+        // 移动端优化
+        precision: isMobile ? 'mediump' : 'highp', // 移动端使用中等精度
+        stencil: false, // 禁用模板缓冲区提升性能
+        depth: true,
       }}
     >
       <SceneContent {...props} shadowMapSize={shadowMapSize} isMobile={isMobile} />

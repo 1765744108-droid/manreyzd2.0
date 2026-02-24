@@ -1,12 +1,13 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { RotateCw, Box, ChevronDown, ChevronUp, RotateCcw, X, Hand, Move, ZoomIn, MousePointer2, Eye, EyeOff, Layers, Compass, SlidersHorizontal, Smartphone, Navigation, Lock, Unlock, MapPin } from 'lucide-react';
-import { ModelData } from '../types';
-import { ANIMATION_CONFIG } from '../constants';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { RotateCw, Box, ChevronDown, ChevronUp, RotateCcw, X, Hand, Move, ZoomIn, MousePointer2, Eye, EyeOff, Layers, Compass, SlidersHorizontal, Smartphone, Navigation, Lock, Unlock, MapPin, Video, ChevronRight } from 'lucide-react';
+import { ModelData, CameraPreset } from '../types';
+import { ANIMATION_CONFIG, MOBILE_CONFIG } from '../constants';
 
 interface ControlsProps {
   models: ModelData[];
   onUpdate: (id: string, updates: Partial<ModelData>) => void;
   selectedId: string | null;
+  onCameraPreset?: (preset: CameraPreset) => void;
 }
 
 const ControlPanel: React.FC<{ 
@@ -14,7 +15,8 @@ const ControlPanel: React.FC<{
   onUpdate: (id: string, updates: Partial<ModelData>) => void;
   isActive: boolean;
   onReset: () => void;
-}> = ({ model, onUpdate, isActive, onReset }) => {
+  isMobile: boolean;
+}> = ({ model, onUpdate, isActive, onReset, isMobile }) => {
   // 折叠状态
   const [isCollapsed, setIsCollapsed] = useState(false);
   // 长按相关状态
@@ -23,6 +25,12 @@ const ControlPanel: React.FC<{
   // 透明度本地状态（用于节流）
   const [localOpacity, setLocalOpacity] = useState((model.opacity ?? 1) * 100);
   const opacityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 动态按钮尺寸 - 移动端更大
+  const buttonClass = isMobile 
+    ? 'min-h-[52px] p-3' 
+    : 'min-h-[44px] p-2.5';
+  const iconSize = isMobile ? 22 : 18;
   
   // 使用 useRef 保存定时器引用，避免闭包问题
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -209,109 +217,97 @@ const ControlPanel: React.FC<{
 
   return (
     <div className={`rounded-xl backdrop-blur-md transition-all duration-300 border ${isActive ? 'bg-white/95 border-blue-400 shadow-lg ring-2 ring-blue-200' : 'bg-white/90 border-gray-200 shadow-md'}`}>
-      {/* 紧凑标题栏 - 增大触摸区域 */}
+      {/* 标题栏 */}
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-2">
-          <Box size={14} className={isActive ? "text-blue-500" : "text-gray-500"} />
-          <span className={`font-bold text-sm ${isActive ? "text-blue-700" : "text-gray-700"}`}>{model.name}</span>
+          <Box size={isMobile ? 18 : 14} className={isActive ? "text-blue-500" : "text-gray-500"} />
+          <span className={`font-bold ${isMobile ? 'text-base' : 'text-sm'} ${isActive ? "text-blue-700" : "text-gray-700"}`}>{model.name}</span>
         </div>
         <div className="flex items-center gap-1">
-          {/* 重置按钮 */}
           <button
             onClick={onReset}
-            className="p-2.5 hover:bg-gray-100 rounded-lg active:scale-95 transition-all touch-manipulation"
+            className={`${buttonClass} hover:bg-gray-100 rounded-lg active:scale-90 transition-all touch-manipulation`}
             title="重置视图"
           >
-            <RotateCcw size={16} className="text-gray-600" />
+            <RotateCcw size={iconSize - 2} className="text-gray-600" />
           </button>
-          {/* 折叠按钮 */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2.5 hover:bg-gray-100 rounded-lg active:scale-95 transition-all touch-manipulation"
+            className={`${buttonClass} hover:bg-gray-100 rounded-lg active:scale-90 transition-all touch-manipulation`}
             title={isCollapsed ? "展开" : "折叠"}
           >
-            {isCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {isCollapsed ? <ChevronUp size={iconSize - 2} /> : <ChevronDown size={iconSize - 2} />}
           </button>
         </div>
       </div>
 
-      {/* 可折叠内容 - 移动端优化布局 */}
+      {/* 可折叠内容 */}
       {!isCollapsed && (
-        <div className="px-3 pb-3 space-y-2">
-          {/* 分部控制 - 横向紧凑，添加文字标签 */}
-          <div className="grid grid-cols-3 gap-1.5">
+        <div className="px-3 pb-3 space-y-3">
+          {/* 分部控制 - 3列 */}
+          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => togglePartialVisibility('rectangular')}
-              className={`flex flex-col items-center justify-center py-2.5 px-2 border rounded-lg transition-all touch-manipulation min-h-[52px] active:scale-95 ${
-                  model.partialVisibility?.rectangularParts !== false 
-                    ? 'bg-green-50 border-green-300 text-green-700' 
-                    : 'bg-gray-50 border-gray-200 text-gray-400'
-                }`}
-                title="矩形部分"
-              >
-                <span className="text-base">■</span>
-                <span className="text-[10px] mt-0.5 font-medium">矩形</span>
-              </button>
-              <button
-                onClick={() => togglePartialVisibility('other')}
-                className={`flex flex-col items-center justify-center py-2.5 px-2 border rounded-lg transition-all touch-manipulation min-h-[52px] active:scale-95 ${
-                  model.partialVisibility?.otherParts !== false 
-                    ? 'bg-blue-50 border-blue-300 text-blue-700' 
-                    : 'bg-gray-50 border-gray-200 text-gray-400'
-                }`}
-                title="塔仓部分"
-              >
-                <span className="text-base">●</span>
-                <span className="text-[10px] mt-0.5 font-medium">塔仓</span>
-              </button>
-              <button
-                onClick={() => togglePartialVisibility('all')}
-                className={`flex flex-col items-center justify-center py-2.5 px-2 border rounded-lg transition-all touch-manipulation min-h-[52px] active:scale-95 ${
-                  (model.partialVisibility?.rectangularParts !== false && model.partialVisibility?.otherParts !== false)
-                    ? 'bg-purple-50 border-purple-300 text-purple-700' 
-                    : 'bg-gray-50 border-gray-200 text-gray-400'
-                }`}
-                title="全部"
-              >
-                <span className="text-base">■●</span>
-                <span className="text-[10px] mt-0.5 font-medium">全部</span>
-              </button>
-            </div>
-          
-          {/* 位置显示 - 移动端可选隐藏 */}
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-gray-500 bg-gray-50 rounded-lg px-2.5 py-1.5">
-            <MapPin size={12} />
-            <span>X:{model.position[0].toFixed(1)}</span>
-            <span>Y:{model.position[1].toFixed(1)}</span>
-            <span>Z:{model.position[2].toFixed(1)}</span>
+              className={`flex flex-col items-center justify-center ${buttonClass} border rounded-xl transition-all touch-manipulation active:scale-90 ${
+                model.partialVisibility?.rectangularParts !== false 
+                  ? 'bg-green-50 border-green-300 text-green-700' 
+                  : 'bg-gray-50 border-gray-200 text-gray-400'
+              }`}
+            >
+              <span className={isMobile ? 'text-xl' : 'text-lg'}>■</span>
+              <span className="text-[10px] mt-0.5 font-medium">矩形</span>
+            </button>
+            <button
+              onClick={() => togglePartialVisibility('other')}
+              className={`flex flex-col items-center justify-center ${buttonClass} border rounded-xl transition-all touch-manipulation active:scale-90 ${
+                model.partialVisibility?.otherParts !== false 
+                  ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                  : 'bg-gray-50 border-gray-200 text-gray-400'
+              }`}
+            >
+              <span className={isMobile ? 'text-xl' : 'text-lg'}>●</span>
+              <span className="text-[10px] mt-0.5 font-medium">塔仓</span>
+            </button>
+            <button
+              onClick={() => togglePartialVisibility('all')}
+              className={`flex flex-col items-center justify-center ${buttonClass} border rounded-xl transition-all touch-manipulation active:scale-90 ${
+                (model.partialVisibility?.rectangularParts !== false && model.partialVisibility?.otherParts !== false)
+                  ? 'bg-purple-50 border-purple-300 text-purple-700' 
+                  : 'bg-gray-50 border-gray-200 text-gray-400'
+              }`}
+            >
+              <span className={isMobile ? 'text-xl' : 'text-lg'}>■●</span>
+              <span className="text-[10px] mt-0.5 font-medium">全部</span>
+            </button>
           </div>
 
-          {/* 旋转和高度控制合并 - 5列紧凑布局，增大触摸目标 */}
-          <div className="grid grid-cols-5 gap-1.5">
+          {/* 旋转控制 - 3列 */}
+          <div className="grid grid-cols-3 gap-2">
             <button 
               onClick={() => rotateModel('x')}
-              className="flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px]"
-              title="X轴"
+              className={`flex flex-col items-center justify-center ${buttonClass} bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-xl active:scale-90 transition-all touch-manipulation`}
             >
-              <RotateCw size={18} className="text-gray-600" />
-              <span className="text-[10px] text-gray-500 mt-0.5 font-medium">X</span>
+              <RotateCw size={iconSize} className="text-gray-600" />
+              <span className="text-[10px] text-gray-500 mt-0.5 font-medium">X轴</span>
             </button>
             <button 
               onClick={() => rotateModel('z')}
-              className="flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px]"
-              title="Z轴"
+              className={`flex flex-col items-center justify-center ${buttonClass} bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-xl active:scale-90 transition-all touch-manipulation`}
             >
-              <RotateCw size={18} className="text-gray-600" />
-              <span className="text-[10px] text-gray-500 mt-0.5 font-medium">Z</span>
+              <RotateCw size={iconSize} className="text-gray-600" />
+              <span className="text-[10px] text-gray-500 mt-0.5 font-medium">Z轴</span>
             </button>
             <button 
               onClick={rotateClockwise}
-              className="flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-green-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px]"
-              title="顺时针"
+              className={`flex flex-col items-center justify-center ${buttonClass} bg-gray-50 hover:bg-green-50 border border-gray-200 rounded-xl active:scale-90 transition-all touch-manipulation`}
             >
-              <RotateCw size={18} className="text-green-600" />
-              <span className="text-[10px] text-green-500 mt-0.5 font-medium">Y</span>
+              <RotateCw size={iconSize} className="text-green-600" />
+              <span className="text-[10px] text-green-500 mt-0.5 font-medium">Y轴</span>
             </button>
+          </div>
+
+          {/* 高度调节 - 2列 */}
+          <div className="grid grid-cols-2 gap-2">
             <button 
               onClick={() => adjustHeight('up')}
               onMouseDown={startLongPress('up')}
@@ -319,10 +315,10 @@ const ControlPanel: React.FC<{
               onMouseLeave={stopLongPress}
               onTouchStart={startLongPress('up')}
               onTouchEnd={stopLongPress}
-              className={`flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px] ${isLongPressing && longPressDirection === 'up' ? 'bg-purple-100 border-purple-400' : ''}`}
-              title="升高"
+              className={`flex items-center justify-center gap-2 ${buttonClass} bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-xl active:scale-90 transition-all touch-manipulation ${isLongPressing && longPressDirection === 'up' ? 'bg-purple-100 border-purple-400' : ''}`}
             >
               <span className="text-xl font-bold text-purple-600">↑</span>
+              <span className="text-sm text-purple-600 font-medium">升高</span>
             </button>
             <button 
               onClick={() => adjustHeight('down')}
@@ -331,53 +327,62 @@ const ControlPanel: React.FC<{
               onMouseLeave={stopLongPress}
               onTouchStart={startLongPress('down')}
               onTouchEnd={stopLongPress}
-              className={`flex flex-col items-center justify-center py-2.5 bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-lg active:scale-95 transition-all touch-manipulation min-h-[52px] ${isLongPressing && longPressDirection === 'down' ? 'bg-purple-100 border-purple-400' : ''}`}
-              title="降低"
+              className={`flex items-center justify-center gap-2 ${buttonClass} bg-gray-50 hover:bg-purple-50 border border-gray-200 rounded-xl active:scale-90 transition-all touch-manipulation ${isLongPressing && longPressDirection === 'down' ? 'bg-purple-100 border-purple-400' : ''}`}
             >
               <span className="text-xl font-bold text-purple-600">↓</span>
+              <span className="text-sm text-purple-600 font-medium">降低</span>
             </button>
           </div>
           
-          {/* 透明度、线框模式和锁定控制 */}
-          <div className="flex gap-1.5 items-center">
-            <div className="flex-1">
-              <div className="text-[10px] text-gray-500 mb-1 font-medium">透明度</div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={localOpacity}
-                onChange={(e) => handleOpacityChange(parseInt(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
-              />
+          {/* 透明度滑块 - 单独一行，全宽 */}
+          <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-600 font-medium">透明度</span>
+              <span className="text-xs text-blue-600 font-bold">{Math.round(localOpacity)}%</span>
             </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={localOpacity}
+              onChange={(e) => handleOpacityChange(parseInt(e.target.value))}
+              className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer accent-blue-500 touch-manipulation"
+              style={{ 
+                WebkitAppearance: 'none',
+                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${localOpacity}%, #e5e7eb ${localOpacity}%, #e5e7eb 100%)`
+              }}
+            />
+          </div>
+
+          {/* 线框和锁定 - 2列 */}
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => {
                 const currentMode = model.wireframe ?? false;
                 onUpdate(model.id, { wireframe: !currentMode });
               }}
-              className={`p-2.5 border rounded-lg transition-all touch-manipulation min-w-[48px] min-h-[48px] flex items-center justify-center active:scale-95 ${
+              className={`flex items-center justify-center gap-2 ${buttonClass} border rounded-xl transition-all touch-manipulation active:scale-90 ${
                 model.wireframe 
                   ? 'bg-blue-500 border-blue-500 text-white' 
                   : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
               }`}
-              title="线框模式"
             >
-              <Layers size={18} />
+              <Layers size={iconSize} />
+              <span className="text-sm font-medium">线框</span>
             </button>
             <button
               onClick={() => {
                 const isLocked = model.locked ?? false;
                 onUpdate(model.id, { locked: !isLocked });
               }}
-              className={`p-2.5 border rounded-lg transition-all touch-manipulation min-w-[48px] min-h-[48px] flex items-center justify-center active:scale-95 ${
+              className={`flex items-center justify-center gap-2 ${buttonClass} border rounded-xl transition-all touch-manipulation active:scale-90 ${
                 model.locked 
                   ? 'bg-red-500 border-red-500 text-white' 
                   : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
               }`}
-              title={model.locked ? "解锁模型" : "锁定模型"}
             >
-              {model.locked ? <Lock size={18} /> : <Unlock size={18} />}
+              {model.locked ? <Lock size={iconSize} /> : <Unlock size={iconSize} />}
+              <span className="text-sm font-medium">{model.locked ? '已锁定' : '未锁定'}</span>
             </button>
           </div>
         </div>
@@ -386,17 +391,60 @@ const ControlPanel: React.FC<{
   );
 };
 
-export const Controls: React.FC<ControlsProps> = ({ models, onUpdate, selectedId }) => {
+export const Controls: React.FC<ControlsProps> = ({ models, onUpdate, selectedId, onCameraPreset }) => {
   // 保存初始状态
   const initialStatesRef = useRef<Map<string, { position: [number, number, number], rotation: [number, number, number] }>>(new Map());
   // 手势提示状态
   const [showGestureTip, setShowGestureTip] = useState(() => {
-    // 检查是否已经显示过提示（使用 localStorage）
     if (typeof window !== 'undefined') {
       return !localStorage.getItem('gesture-tip-seen');
     }
     return false;
   });
+  
+  // 控制面板容器引用 - 用于检测外部点击
+  const panelContainerRef = useRef<HTMLDivElement>(null);
+  
+  // 移动端检测
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+           window.innerWidth < 768 ||
+           'ontouchstart' in window;
+  }, []);
+  
+  // 选项卡状态 - 0=现实模型, 1=锚定模型
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  
+  // 控制面板展开状态 - 移动端默认折叠
+  const [isPanelExpanded, setIsPanelExpanded] = useState(!isMobile);
+  
+  // 获取当前活动模型
+  const activeModel = models[activeTabIndex];
+  
+  // 监听全局点击事件 - 点击外部时收起面板
+  useEffect(() => {
+    if (!isMobile) return; // 只在移动端启用
+    
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      // 如果面板未展开，不处理
+      if (!isPanelExpanded) return;
+      
+      const target = event.target as Node;
+      
+      // 检查点击是否在控制面板内部
+      if (panelContainerRef.current && !panelContainerRef.current.contains(target)) {
+        setIsPanelExpanded(false);
+      }
+    };
+    
+    // 使用 pointerdown 以同时支持触摸和鼠标
+    document.addEventListener('pointerdown', handleClickOutside, { passive: true });
+    
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+    };
+  }, [isMobile, isPanelExpanded]);
   
   useEffect(() => {
     // 初始化时保存每个模型的初始状态
@@ -531,24 +579,122 @@ export const Controls: React.FC<ControlsProps> = ({ models, onUpdate, selectedId
         </div>
       )}
       
-      {/* 模型控制面板 - 移动端优化布局 */}
+      {/* 模型控制面板 - 统一使用选项卡切换布局 */}
       <div 
-        className="absolute left-0 right-0 flex flex-row gap-2 px-3 pointer-events-none sm:px-4 sm:gap-3" 
+        ref={panelContainerRef}
+        className={`absolute left-0 right-0 pointer-events-auto ${
+          isMobile ? 'px-3' : 'px-4 max-w-lg mx-auto'
+        }`}
         style={{ 
-          // 移动端底部距离，考虑安全区域和浏览器UI
-          bottom: 'max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px))',
+          bottom: isMobile 
+            ? 'max(16px, calc(env(safe-area-inset-bottom, 0px) + 8px))'
+            : 'max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px))',
         }}
       >
-        {models.map((model) => (
-          <div key={model.id} className="flex-1 pointer-events-auto max-w-[50%]">
+        {/* 选项卡切换按钮组 + 展开/收起按钮 */}
+        <div className={`flex mb-2 bg-white/95 backdrop-blur-md rounded-2xl p-1.5 shadow-lg border border-gray-200 ${
+          isMobile ? 'gap-1' : 'gap-2'
+        }`}>
+          {models.map((model, index) => (
+            <button
+              key={model.id}
+              onClick={() => {
+                setActiveTabIndex(index);
+                // 移动端点击标签时展开面板
+                if (isMobile && !isPanelExpanded) {
+                  setIsPanelExpanded(true);
+                }
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-xl font-bold transition-all touch-manipulation ${
+                isMobile 
+                  ? 'py-3 px-4 text-sm min-h-[48px]' 
+                  : 'py-2.5 px-6 text-sm'
+              } ${
+                activeTabIndex === index
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md'
+                  : 'bg-transparent text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {/* 指示图标 */}
+              <span className={`w-2 h-2 rounded-full ${
+                activeTabIndex === index 
+                  ? 'bg-white' 
+                  : index === 0 ? 'bg-green-400' : 'bg-orange-400'
+              }`} />
+              {model.name}
+            </button>
+          ))}
+          
+          {/* 移动端展开/收起按钮 */}
+          {isMobile && (
+            <button
+              onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+              className={`flex items-center justify-center rounded-xl transition-all touch-manipulation min-w-[48px] ${
+                isPanelExpanded 
+                  ? 'bg-gray-200 text-gray-600' 
+                  : 'bg-blue-100 text-blue-600'
+              }`}
+            >
+              {isPanelExpanded ? (
+                <ChevronDown size={22} />
+              ) : (
+                <ChevronUp size={22} />
+              )}
+            </button>
+          )}
+        </div>
+        
+        {/* 当前选中的模型控制面板 - 丝滑折叠动画 */}
+        <div className={`transition-all duration-300 ease-out overflow-hidden ${
+          (isPanelExpanded || !isMobile) && activeModel
+            ? 'max-h-[600px] opacity-100 transform translate-y-0'
+            : 'max-h-0 opacity-0 transform translate-y-4'
+        }`}>
+          {activeModel && (
             <ControlPanel 
-              model={model} 
+              model={activeModel} 
               onUpdate={onUpdate} 
-              isActive={selectedId === model.id}
-              onReset={() => handleReset(model.id)}
+              isActive={selectedId === activeModel.id}
+              onReset={() => handleReset(activeModel.id)}
+              isMobile={isMobile}
             />
+          )}
+        </div>
+        
+        {/* 视角切换按钮组 - 丝滑折叠动画 */}
+        {onCameraPreset && (
+          <div className={`transition-all duration-300 ease-out overflow-hidden mt-2 ${
+            (isPanelExpanded || !isMobile)
+              ? 'max-h-[200px] opacity-100 transform translate-y-0'
+              : 'max-h-0 opacity-0 transform translate-y-4'
+          }`}>
+            <div className="bg-white/95 backdrop-blur-md rounded-xl p-2 shadow-lg border border-gray-200">
+              <div className="flex items-center gap-1 mb-1.5">
+                <Video size={14} className="text-gray-500" />
+                <span className="text-xs text-gray-500 font-medium">视角切换</span>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[
+                  { key: 'front', label: '前' },
+                  { key: 'back', label: '后' },
+                  { key: 'side', label: '侧' },
+                  { key: 'top', label: '顶' },
+                  { key: 'iso', label: '等轴' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => onCameraPreset(key as CameraPreset)}
+                    className={`py-2 px-2 text-xs font-medium rounded-lg transition-all touch-manipulation active:scale-95 ${
+                      isMobile ? 'min-h-[44px]' : 'min-h-[36px]'
+                    } bg-gray-50 hover:bg-blue-50 text-gray-600 hover:text-blue-600 border border-gray-200`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        ))}
+        )}
       </div>
     </>
   );

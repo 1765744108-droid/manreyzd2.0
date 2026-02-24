@@ -592,11 +592,11 @@ const AxisLabels: React.FC = () => {
   );
 };
 
-// ViewCube 外层容器组件 - 移动端优先设计
+// ViewCube 外层容器组件 - 移动端默认隐藏
 export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => {
   // 检测是否为移动设备
   const [isMobile, setIsMobile] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);  // 折叠状态
+  const [isCollapsed, setIsCollapsed] = useState(true);  // 默认折叠
   const [isLandscape, setIsLandscape] = useState(false);  // 横屏状态
   
   useEffect(() => {
@@ -605,8 +605,8 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       const landscape = window.innerWidth > window.innerHeight;
       setIsMobile(mobile);
       setIsLandscape(landscape);
-      // 移动端横屏默认折叠
-      if (mobile && landscape) {
+      // 移动端默认折叠
+      if (mobile) {
         setIsCollapsed(true);
       }
     };
@@ -620,30 +620,30 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     };
   }, []);
   
-  // 移动端尺寸更小，节省屏幕空间
-  const cubeSize = isMobile ? MOBILE_CONFIG.VIEWCUBE_SIZE : DESKTOP_CONFIG.VIEWCUBE_SIZE;
+  // 移动端尺寸稍大一些，提升可点击性
+  const cubeSize = isMobile ? MOBILE_CONFIG.VIEWCUBE_SIZE + 10 : DESKTOP_CONFIG.VIEWCUBE_SIZE;
   
   // 折叠状态切换
   const toggleCollapse = useCallback(() => {
     setIsCollapsed(prev => !prev);
   }, []);
   
-  // 折叠时只显示小按钮 - 移动端优化
+  // 移动端折叠时显示小按钮
   if (isCollapsed) {
     return (
       <button
         onClick={toggleCollapse}
-        className="absolute pointer-events-auto bg-white/95 backdrop-blur rounded-xl shadow-lg p-3 hover:bg-gray-50 active:scale-95 transition-all touch-manipulation"
+        className="absolute pointer-events-auto bg-white/95 backdrop-blur rounded-xl shadow-lg p-3 hover:bg-gray-50 active:scale-90 transition-all touch-manipulation"
         style={{
           top: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))',
           right: 'max(12px, env(safe-area-inset-right, 8px))',
           zIndex: 50,
-          minWidth: '48px',
-          minHeight: '48px',
+          minWidth: isMobile ? '48px' : '44px',
+          minHeight: isMobile ? '48px' : '44px',
         }}
         title="展开导航立方体"
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width={isMobile ? 22 : 20} height={isMobile ? 22 : 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
         </svg>
       </button>
@@ -681,15 +681,15 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
         style={{ 
           background: 'transparent',
           borderRadius: '12px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
         }}
         gl={{ 
           preserveDrawingBuffer: true, 
-          antialias: false, // 关闭抗锯齿提升性能
+          antialias: true, // 启用抗锯齿提升ViewCube清晰度
           alpha: true,
-          powerPreference: 'low-power' // 使用低功耗模式，避免与主场景竞争GPU
+          powerPreference: 'low-power'
         }}
-        dpr={[1, 1.5]}  // 降低像素比提升性能
+        dpr={isMobile ? [1.5, 2] : [1, 2]}  // 移动端提高DPR
         frameloop="always"
         performance={{ min: 0.5 }}
         // 移动端触摸优化
@@ -719,14 +719,14 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       {/* 折叠按钮 - 移动端优化 */}
       <button
         onClick={toggleCollapse}
-        className="absolute -bottom-1 -right-1 bg-white rounded-full shadow-md p-1.5 hover:bg-gray-100 active:scale-95 transition-all touch-manipulation"
+        className="absolute -bottom-1 -right-1 bg-white rounded-full shadow-md p-2 hover:bg-gray-100 active:scale-90 transition-all touch-manipulation"
         style={{
-          minWidth: '28px',
-          minHeight: '28px',
+          minWidth: '32px',
+          minHeight: '32px',
         }}
         title="收起导航立方体"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polyline points="4 14 10 14 10 20"/>
           <polyline points="20 10 14 10 14 4"/>
           <line x1="14" y1="10" x2="21" y2="3"/>

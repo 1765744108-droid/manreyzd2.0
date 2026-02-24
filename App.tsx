@@ -3,10 +3,16 @@ import { Controls } from './components/Controls.tsx';
 import { Scene } from './components/Scene.tsx';
 import { ViewCube } from './components/ViewCube.tsx';
 import PerformanceMonitor from './components/PerformanceMonitor.tsx';
+import { ModelGallery } from './components/ModelGallery.tsx';
+import { SingleModelViewer } from './components/SingleModelViewer.tsx';
 import { ModelData, HistoryState, CameraPreset } from './types';
+import { GalleryModel } from './galleryData';
 import { DEFAULT_MODEL_1_URL, DEFAULT_MODEL_2_URL, HISTORY_CONFIG, CAMERA_PRESETS } from './constants';
-import { Upload, Info, Undo2, Redo2, Camera, HelpCircle, Eye, EyeOff, Home } from 'lucide-react';
+import { Upload, Info, Undo2, Redo2, Camera, HelpCircle, Eye, EyeOff, Home, Grid3X3, MoreHorizontal, X } from 'lucide-react';
 import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
+
+// 视图模式类型
+type ViewMode = 'compare' | 'gallery' | 'single';
 
 const INITIAL_MODELS: ModelData[] = [
   {
@@ -64,8 +70,13 @@ const App: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showPerformanceMonitor, setShowPerformanceMonitor] = useState<boolean>(false);
   const [showHelp, setShowHelp] = useState<boolean>(false);
+  const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false); // 更多菜单状态
   const cameraControlsRef = useRef<OrbitControlsType | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  
+  // 视图模式状态
+  const [viewMode, setViewMode] = useState<ViewMode>('compare');
+  const [selectedGalleryModel, setSelectedGalleryModel] = useState<GalleryModel | null>(null);
   
   // 撤销/重做历史
   const [history, setHistory] = useState<HistoryState[]>([]);
@@ -257,7 +268,7 @@ const App: React.FC = () => {
         </div>
       )}
       
-      {/* 工具栏 - 移动端优化布局 */}
+      {/* 工具栏 - 移动端精简布局 */}
       <div 
         className="absolute z-20 flex gap-1.5"
         style={{
@@ -265,43 +276,14 @@ const App: React.FC = () => {
           left: 'max(12px, env(safe-area-inset-left, 8px))',
         }}
       >
-        {/* 撤销 */}
+        {/* 模型库按钮 - 核心入口，始终显示 */}
         <button
-          onClick={handleUndo}
-          disabled={historyIndex <= 0}
-          className={`p-3 rounded-xl shadow-lg transition-all touch-manipulation active:scale-95 ${
-            historyIndex > 0 
-              ? 'bg-white hover:bg-gray-50 text-gray-700' 
-              : 'bg-gray-100 text-gray-300 cursor-not-allowed'
-          }`}
-          title="撤销 (Ctrl+Z)"
+          onClick={() => setViewMode('gallery')}
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl shadow-lg text-white font-medium transition-all touch-manipulation active:scale-95"
+          title="模型库"
         >
-          <Undo2 size={20} />
-        </button>
-        
-        {/* 重做 */}
-        <button
-          onClick={handleRedo}
-          disabled={historyIndex >= history.length - 1}
-          className={`p-3 rounded-xl shadow-lg transition-all touch-manipulation active:scale-95 ${
-            historyIndex < history.length - 1 
-              ? 'bg-white hover:bg-gray-50 text-gray-700' 
-              : 'bg-gray-100 text-gray-300 cursor-not-allowed'
-          }`}
-          title="重做 (Ctrl+Y)"
-        >
-          <Redo2 size={20} />
-        </button>
-        
-        <div className="w-px bg-gray-300 mx-0.5 hidden sm:block" />
-        
-        {/* 截图 */}
-        <button
-          onClick={handleScreenshot}
-          className="p-3 bg-white hover:bg-gray-50 rounded-xl shadow-lg text-gray-700 transition-all touch-manipulation active:scale-95"
-          title="截图"
-        >
-          <Camera size={20} />
+          <Grid3X3 size={20} />
+          <span className="text-sm">模型库</span>
         </button>
         
         {/* 重置视角 */}
@@ -321,48 +303,75 @@ const App: React.FC = () => {
         >
           <HelpCircle size={20} />
         </button>
+        
+        {/* 更多菜单按钮 */}
+        <div className="relative">
+          <button
+            onClick={() => setShowMoreMenu(!showMoreMenu)}
+            className={`p-3 rounded-xl shadow-lg transition-all touch-manipulation active:scale-95 ${
+              showMoreMenu ? 'bg-gray-200 text-gray-700' : 'bg-white hover:bg-gray-50 text-gray-700'
+            }`}
+            title="更多功能"
+          >
+            {showMoreMenu ? <X size={20} /> : <MoreHorizontal size={20} />}
+          </button>
+          
+          {/* 更多菜单弹出层 */}
+          {showMoreMenu && (
+            <div 
+              className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 py-2 min-w-[160px] animate-menu-open"
+              onClick={() => setShowMoreMenu(false)}
+            >
+              {/* 撤销 */}
+              <button
+                onClick={handleUndo}
+                disabled={historyIndex <= 0}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors touch-manipulation ${
+                  historyIndex > 0 
+                    ? 'text-gray-700 hover:bg-gray-50 active:bg-gray-100' 
+                    : 'text-gray-300 cursor-not-allowed'
+                }`}
+              >
+                <Undo2 size={18} />
+                <span className="text-sm font-medium">撤销</span>
+              </button>
+              
+              {/* 重做 */}
+              <button
+                onClick={handleRedo}
+                disabled={historyIndex >= history.length - 1}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors touch-manipulation ${
+                  historyIndex < history.length - 1 
+                    ? 'text-gray-700 hover:bg-gray-50 active:bg-gray-100' 
+                    : 'text-gray-300 cursor-not-allowed'
+                }`}
+              >
+                <Redo2 size={18} />
+                <span className="text-sm font-medium">重做</span>
+              </button>
+              
+              <div className="h-px bg-gray-200 my-1" />
+              
+              {/* 截图 */}
+              <button
+                onClick={handleScreenshot}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation"
+              >
+                <Camera size={18} />
+                <span className="text-sm font-medium">截图保存</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       
-      {/* 预设视角按钮组 - 移动端隐藏，只在桌面端显示 */}
-      <div 
-        className="absolute z-20 hidden md:flex gap-1 bg-white/90 backdrop-blur rounded-xl shadow-lg p-1.5"
-        style={{
-          top: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))',
-          left: '50%',
-          transform: 'translateX(-50%)',
-        }}
-      >
-        <button
-          onClick={() => handleCameraPreset('front')}
-          className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors touch-manipulation"
-        >
-          前
-        </button>
-        <button
-          onClick={() => handleCameraPreset('back')}
-          className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors touch-manipulation"
-        >
-          后
-        </button>
-        <button
-          onClick={() => handleCameraPreset('side')}
-          className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors touch-manipulation"
-        >
-          侧
-        </button>
-        <button
-          onClick={() => handleCameraPreset('top')}
-          className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors touch-manipulation"
-        >
-          顶
-        </button>
-        <button
-          onClick={() => handleCameraPreset('iso')}
-          className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors touch-manipulation"
-        >
-          等轴
-        </button>
-      </div>
+      {/* 点击外部关闭更多菜单 */}
+      {showMoreMenu && (
+        <div 
+          className="fixed inset-0 z-10"
+          onClick={() => setShowMoreMenu(false)}
+        />
+      )}
       
       {/* 3D Scene Layer */}
       <div className="absolute inset-0 z-0">
@@ -389,6 +398,7 @@ const App: React.FC = () => {
             models={models} 
             onUpdate={handleUpdateModel} 
             selectedId={selectedId}
+            onCameraPreset={handleCameraPreset}
           />
         </div>
 
@@ -521,6 +531,25 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* 模型画廊 */}
+      {viewMode === 'gallery' && (
+        <ModelGallery
+          onSelectModel={(model) => {
+            setSelectedGalleryModel(model);
+            setViewMode('single');
+          }}
+          onBack={() => setViewMode('compare')}
+        />
+      )}
+      
+      {/* 单模型查看器 */}
+      {viewMode === 'single' && selectedGalleryModel && (
+        <SingleModelViewer
+          model={selectedGalleryModel}
+          onBack={() => setViewMode('gallery')}
+        />
       )}
     </div>
   );

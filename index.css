@@ -68,8 +68,63 @@ button {
 
 /* 移动端输入框优化 */
 input[type="range"] {
-  height: 32px;
+  height: 40px;
   touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 滑块轨道样式 */
+input[type="range"]::-webkit-slider-track {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+/* 滑块按钮样式 */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  background: #3b82f6;
+  border-radius: 50%;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  margin-top: -8px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: #3b82f6;
+  border-radius: 50%;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+  box-shadow: 0 3px 10px rgba(59, 130, 246, 0.4);
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
 }
 
 /* 滑动条样式优化 */
@@ -97,12 +152,26 @@ input[type="range"] {
   
   /* 移动端滑块更大 */
   input[type="range"] {
-    height: 40px;
+    height: 48px;
   }
   
   input[type="range"]::-webkit-slider-thumb {
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
+    margin-top: -12px;
+  }
+  
+  input[type="range"]::-moz-range-thumb {
+    width: 32px;
+    height: 32px;
+  }
+  
+  input[type="range"]::-webkit-slider-track {
+    height: 10px;
+  }
+  
+  input[type="range"]::-moz-range-track {
+    height: 10px;
   }
 }
 
@@ -122,6 +191,174 @@ input[type="range"] {
 
 /* 触摸反馈效果 */
 .touch-feedback:active {
-  transform: scale(0.96);
-  opacity: 0.8;
+  transform: scale(0.94);
+  opacity: 0.85;
+}
+
+/* 移动端触摸优化通用样式 */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 移动端按钮点击状态 */
+@media (max-width: 768px) {
+  button:active:not(:disabled) {
+    transform: scale(0.92);
+    transition: transform 0.1s ease-out;
+  }
+}
+
+/* Canvas 咖性能优化 */
+canvas {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 高性能动画 */
+@media (prefers-reduced-motion: no-preference) {
+  * {
+    scroll-behavior: smooth;
+  }
+}
+
+/* GPU 加速元素 */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+/* 页面过渡动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.2s ease-in forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.25s ease-in forwards;
+}
+
+/* 返回顶部按钮动画 */
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* 抽屉拓展动画 */
+@keyframes expandUp {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 600px;
+    opacity: 1;
+  }
+}
+
+@keyframes collapseDown {
+  from {
+    max-height: 600px;
+    opacity: 1;
+  }
+  to {
+    max-height: 0;
+    opacity: 0;
+  }
+}
+
+.animate-expand {
+  animation: expandUp 0.3s ease-out forwards;
+  overflow: hidden;
+}
+
+.animate-collapse {
+  animation: collapseDown 0.2s ease-in forwards;
+  overflow: hidden;
+}
+
+/* 更多菜单动画 */
+@keyframes menuOpen {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-menu-open {
+  animation: menuOpen 0.2s ease-out forwards;
 }

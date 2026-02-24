@@ -3,8 +3,16 @@ import { useThree, useFrame, ThreeEvent } from '@react-three/fiber';
 import { useGLTF, Outlines } from '@react-three/drei';
 import * as THREE from 'three';
 import { ModelData } from '../types';
-import { COLORS, DRAG_CONFIG, ANIMATION_CONFIG, WIREFRAME_CONFIG, MATERIAL_CONFIG } from '../constants';
+import { COLORS, DRAG_CONFIG, ANIMATION_CONFIG, WIREFRAME_CONFIG, MATERIAL_CONFIG, MOBILE_CONFIG } from '../constants';
 import { OverlapInfo } from './Scene.tsx';
+
+// 移动端检测
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         window.innerWidth < 768 ||
+         'ontouchstart' in window;
+};
 
 // 预加载模型 - 提升首次加载速度
 const MODEL_URLS = [
@@ -97,6 +105,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   // 获取相机用于视角感知拖拽
   const { camera } = useThree();
   
+  // 移动端检测
+  const isMobile = useMemo(() => isMobileDevice(), []);
+  
   // 加载完整模型作为参考（仅用于计算边界框）
   const fullModel = useGLTF(data.url);
   // 加载分离的模型文件
@@ -104,8 +115,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   const otherPart = data.otherPartUrl ? useGLTF(data.otherPartUrl) : null;
   
   const groupRef = useRef<THREE.Group>(null);
-  // 性能优化：使用 useRef 管理 hover 状态，避免重渲染
+  // 性能优化：使用 useRef 管理 hover 和拖拽状态，避免重渲染
   const hoveredRef = useRef(false);
+  const isDraggingVisualRef = useRef(false);
   
   // 性能优化：使用 useRef 管理旋转状态，避免频繁重渲染
   const currentRotationRef = useRef<[number, number, number]>(data.rotation);
@@ -116,6 +128,10 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   const positionRef = useRef<[number, number, number]>(data.position);
   const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
   const isDraggingRef = useRef(false);
+  
+  // RAF 节流相关
+  const rafIdRef = useRef<number | null>(null);
+  const pendingMoveRef = useRef<{ deltaX: number; deltaY: number } | null>(null);
   
   // 保存全局事件处理器引用，用于清理
   const globalHandlersRef = useRef<{
@@ -149,10 +165,16 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     return otherPart.scene.clone();
   }, [otherPart, data.otherPartUrl, data.id]);
   
-  // 组件卸载时清理全局事件监听器，防止内存泄漏
+  // 组件卸载时清理全局事件监听器和RAF，防止内存泄漏
   useEffect(() => {
     return () => {
       isDraggingRef.current = false;
+      // 取消待处理的 RAF
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingMoveRef.current = null;
       if (globalHandlersRef.current.move) {
         window.removeEventListener('pointermove', globalHandlersRef.current.move);
       }
@@ -384,42 +406,38 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           });
         }
           
-        // 添加线框轮廓（常规模式下）
-        // 使用唯一ID确保每个mesh只创建一次线框
+        // 添加线框轮廓（常规模式下）- 所有模型都需要显示
         const meshId = `${modelId}-${child.uuid}`;
-        if (!isWireframe && child.geometry && !wireframesCreatedRef.current.has(meshId)) {
+        const alreadyHas = wireframesCreatedRef.current.has(meshId);
+        
+        if (!isWireframe && child.geometry && !alreadyHas) {
           try {
-            // 检查几何体是否有效
             if (!child.geometry.attributes.position || child.geometry.attributes.position.count === 0) {
-              console.warn('Invalid geometry for mesh:', meshId);
               return;
             }
             
-            // 降低角度阈值，显示更多边缘
             const edges = new THREE.EdgesGeometry(child.geometry, WIREFRAME_CONFIG.EDGE_ANGLE_THRESHOLD);
-            
-            // 根据模型ID设置不同的线框颜色
             const wireframeColor = modelId === 'model-2' ? COLORS.wireframe2 : COLORS.wireframe1;
               
             const lineMaterial = new THREE.LineBasicMaterial({ 
               color: wireframeColor,
-              transparent: false,
-              opacity: 1.0,
+              transparent: true,
+              opacity: 0.8,
               depthTest: true,
               depthWrite: false,
-              linewidth: WIREFRAME_CONFIG.LINE_WIDTH
+              linewidth: WIREFRAME_CONFIG.LINE_WIDTH,
+              polygonOffset: true,
+              polygonOffsetFactor: -2,
+              polygonOffsetUnits: -2,
             });
             const wireframe = new THREE.LineSegments(edges, lineMaterial);
             wireframe.userData.isWireframeOverlay = true;
             wireframe.userData.meshId = meshId;
-            // 锚定模型线框渲染顺序更高，确保显示在最前面
-            wireframe.renderOrder = modelId === 'model-2' ? WIREFRAME_CONFIG.RENDER_ORDER_BASE + 1 : WIREFRAME_CONFIG.RENDER_ORDER_BASE;
+            wireframe.renderOrder = WIREFRAME_CONFIG.RENDER_ORDER_BASE + (modelId === 'model-2' ? 2 : 1);
             child.add(wireframe);
-              
-            // 记录已创建线框
             wireframesCreatedRef.current.add(meshId);
           } catch (e) {
-            console.warn('Failed to create wireframe for mesh:', meshId, e);
+            // 静默失败
           }
         }
       }
@@ -495,38 +513,65 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果
 
   // 拖拽处理 - 极致性能优化，完全跳过React状态更新
-  // 全局移动处理器（用useCallback缓存，避免重建）
-  const handleGlobalMove = useCallback((moveEvent: PointerEvent) => {
-    if (!isDraggingRef.current || !lastPointerPosRef.current || !groupRef.current || !dragContextRef.current) return;
-      
+  // RAF 节流的实际位置更新函数
+  const applyPendingMove = useCallback(() => {
+    if (!pendingMoveRef.current || !groupRef.current || !dragContextRef.current) {
+      rafIdRef.current = null;
+      return;
+    }
+    
+    const { deltaX, deltaY } = pendingMoveRef.current;
     const { rightOnPlane, upOnPlane, moveSpeed, boundaryMin, boundaryMax } = dragContextRef.current;
-      
-    // 计算屏幕空间移动增量
-    const deltaX = moveEvent.clientX - lastPointerPosRef.current.x;
-    const deltaY = moveEvent.clientY - lastPointerPosRef.current.y;
-      
-    // 立即更新指针位置
-    lastPointerPosRef.current = { x: moveEvent.clientX, y: moveEvent.clientY };
-      
-    // 忽略微小移动
-    if (Math.abs(deltaX) < DRAG_CONFIG.MIN_MOVE_THRESHOLD && Math.abs(deltaY) < DRAG_CONFIG.MIN_MOVE_THRESHOLD) return;
-      
+    
     // 计算世界空间移动
     const worldDeltaX = (rightOnPlane.x * deltaX - upOnPlane.x * deltaY) * moveSpeed;
     const worldDeltaZ = (rightOnPlane.z * deltaX - upOnPlane.z * deltaY) * moveSpeed;
-      
+    
     // 获取当前位置并计算新位置
     const currentPos = positionRef.current;
     const newX = Math.max(boundaryMin, Math.min(boundaryMax, currentPos[0] + worldDeltaX));
     const newZ = Math.max(boundaryMin, Math.min(boundaryMax, currentPos[2] + worldDeltaZ));
-      
+    
     // 更新ref
     positionRef.current = [newX, currentPos[1], newZ];
-      
-    // 极致性能：直接操作Three.js对象位置
+    
+    // 直接操作Three.js对象位置
     groupRef.current.position.x = newX;
     groupRef.current.position.z = newZ;
+    
+    // 清除待处理的移动
+    pendingMoveRef.current = null;
+    rafIdRef.current = null;
   }, []);
+  
+  // 全局移动处理器（用useCallback缓存，避免重建）
+  const handleGlobalMove = useCallback((moveEvent: PointerEvent) => {
+    if (!isDraggingRef.current || !lastPointerPosRef.current || !groupRef.current || !dragContextRef.current) return;
+    
+    // 计算屏幕空间移动增量
+    const deltaX = moveEvent.clientX - lastPointerPosRef.current.x;
+    const deltaY = moveEvent.clientY - lastPointerPosRef.current.y;
+    
+    // 立即更新指针位置
+    lastPointerPosRef.current = { x: moveEvent.clientX, y: moveEvent.clientY };
+    
+    // 移动端使用更高阈值减少抖动
+    const minThreshold = isMobile ? DRAG_CONFIG.MOBILE_MIN_THRESHOLD : DRAG_CONFIG.MIN_MOVE_THRESHOLD;
+    if (Math.abs(deltaX) < minThreshold && Math.abs(deltaY) < minThreshold) return;
+    
+    // 累加移动增量（如果已有待处理的移动）
+    if (pendingMoveRef.current) {
+      pendingMoveRef.current.deltaX += deltaX;
+      pendingMoveRef.current.deltaY += deltaY;
+    } else {
+      pendingMoveRef.current = { deltaX, deltaY };
+    }
+    
+    // 使用 RAF 节流，确保每帧最多更新一次
+    if (!rafIdRef.current) {
+      rafIdRef.current = requestAnimationFrame(applyPendingMove);
+    }
+  }, [isMobile, applyPendingMove]);
     
   // 全局抬起处理器
   const handleGlobalUp = useCallback(() => {
@@ -535,6 +580,16 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     isDraggingRef.current = false;
     lastPointerPosRef.current = null;
     dragContextRef.current = null;
+    
+    // 取消待处理的 RAF
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    pendingMoveRef.current = null;
+    
+    // 清除拖拽视觉反馈
+    isDraggingVisualRef.current = false;
       
     // 拖拽结束时同步一次状态到React
     if (groupRef.current) {
@@ -574,6 +629,10 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     // 开始拖拽
     isDraggingRef.current = true;
     lastPointerPosRef.current = { x: e.clientX, y: e.clientY };
+    
+    // 设置拖拽视觉反馈
+    isDraggingVisualRef.current = true;
+    
     onDragStart?.();
       
     // 从相机矩阵直接提取方向向量
@@ -596,10 +655,11 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     if (upLen > 0.01) upOnPlane.divideScalar(upLen);
     else upOnPlane.set(0, 0, -1);
       
-    // 计算移动缩放系数
+    // 计算移动缩放系数 - 移动端使用更快的速度
     const cameraDistance = camera.position.length();
     const distanceFactor = Math.max(DRAG_CONFIG.MIN_DISTANCE_FACTOR, Math.min(DRAG_CONFIG.MAX_DISTANCE_FACTOR, cameraDistance / DRAG_CONFIG.DISTANCE_REFERENCE));
-    const moveSpeed = DRAG_CONFIG.BASE_MOVE_SPEED * distanceFactor;
+    const baseMoveSpeed = isMobile ? DRAG_CONFIG.MOBILE_MOVE_SPEED : DRAG_CONFIG.BASE_MOVE_SPEED;
+    const moveSpeed = baseMoveSpeed * distanceFactor;
       
     // 保存拖拽上下文到ref
     dragContextRef.current = {
@@ -617,7 +677,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     window.addEventListener('pointermove', handleGlobalMove, { passive: true });
     window.addEventListener('pointerup', handleGlobalUp);
     window.addEventListener('pointercancel', handleGlobalUp);
-  }, [data.selected, data.id, data.locked, onSelect, onDragStart, camera, handleGlobalMove, handleGlobalUp]);
+  }, [data.selected, data.id, data.locked, onSelect, onDragStart, camera, handleGlobalMove, handleGlobalUp, isMobile]);
 
   const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
     // 只有在没有拖拽时才触发点击
@@ -671,8 +731,15 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
             </group>
           </group>
         </group>
-      </group>      
-      {/* Visual Feedback: Selection Outline - 简化以提升性能 */}
+      </group>
+      
+      {/* 扩大点击热区 - 透明的辅助点击区域 */}
+      <mesh visible={false}>
+        <boxGeometry args={[3, 3, 3]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+      
+      {/* Visual Feedback: Selection Outline */}
       {data.selected && (
         <Outlines 
           thickness={2} 
