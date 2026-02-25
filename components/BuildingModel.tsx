@@ -647,10 +647,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       return;
     }
       
-    // 选中模型
-    if (!data.selected) {
-      onSelect(data.id);
-    }
+    // 每次点击都调用 onSelect，确保 Gizmo 显示
+    onSelect(data.id);
     
     // 如果模型被锁定，不允许拖拽
     if (data.locked) {
