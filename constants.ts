@@ -15,18 +15,19 @@ export const COLORS = {
 
 export const INITIAL_CAMERA_POSITION: [number, number, number] = [13.5, 13.5, 13.5];
 
-// 拖拽配置 - 优化移动端响应
+// 拖拽配置 - 移动端触控优化
 export const DRAG_CONFIG = {
-  BASE_MOVE_SPEED: 0.015,      // 基础移动速度（略微提升）
+  BASE_MOVE_SPEED: 0.015,      // 基础移动速度
   MIN_DISTANCE_FACTOR: 0.5,    // 最小距离系数
   MAX_DISTANCE_FACTOR: 2,      // 最大距离系数
   DISTANCE_REFERENCE: 10,      // 距离参考值
   MIN_MOVE_THRESHOLD: 0.5,     // 最小移动阈值（像素）
-  BOUNDARY_MIN: -4,            // 拖拽边界最小值
-  BOUNDARY_MAX: 4,             // 拖拽边界最大值
-  // 移动端拖拽优化
-  MOBILE_MOVE_SPEED: 0.018,    // 移动端更快的移动速度
-  MOBILE_MIN_THRESHOLD: 1,     // 移动端更高的移动阈值（减少抖动）
+  BOUNDARY_MIN: -3,            // 拖拽边界最小值
+  BOUNDARY_MAX: 3,             // 拖拽边界最大值
+  // 移动端拖拽优化 - 降低阈值提高精准度
+  MOBILE_MOVE_SPEED: 0.018,    // 移动端移动速度（提高响应）
+  MOBILE_MIN_THRESHOLD: 1.5,   // 移动端阈值（降低提高精准度）
+  MOBILE_DEBOUNCE_MS: 16,      // 移动端防抖时间（约一帧）
 };
 
 // 动画配置
@@ -48,25 +49,30 @@ export const CAMERA_CONFIG = {
   MAX_POLAR_ANGLE: Math.PI,
 };
 
-// 线框配置
+// 线框配置 - 移动端简化
 export const WIREFRAME_CONFIG = {
-  EDGE_ANGLE_THRESHOLD: 10,    // 边缘角度阈值
-  LINE_WIDTH: 2,               // 线宽
+  EDGE_ANGLE_THRESHOLD: 15,    // 提高边缘角度阈值（减少线条）
+  LINE_WIDTH: 1,               // 线宽
   RENDER_ORDER_BASE: 10000,    // 基础渲染顺序
+  MOBILE_EDGE_THRESHOLD: 25,   // 移动端更高阈值
 };
 
-// 移动端配置 - 平衡清晰度与性能
+// 移动端配置 - 画质与性能平衡
 export const MOBILE_CONFIG = {
-  DPR: [1.5, 2] as [number, number],  // 提升DPR改善清晰度
-  SHADOW_MAP_SIZE: 512,               // 降低阴影质量换取性能
-  MIN_TOUCH_TARGET: 52,               // 更大的触摸目标
-  VIEWCUBE_SIZE: 90,                  // 稍小的ViewCube
-  // 移动端性能优化
-  ENABLE_ANTIALIAS: true,             // 启用抗锯齿改善清晰度
-  MAX_PIXEL_RATIO: 2.5,               // 高端设备最大像素比
+  DPR: [1.5, 2.5] as [number, number],  // 提升DPR消除马赛克
+  SHADOW_MAP_SIZE: 256,               // 保持低阴影质量
+  MIN_TOUCH_TARGET: 48,               // 触摸目标
+  VIEWCUBE_SIZE: 80,                  // 稍小的ViewCube
+  // 移动端画质优化
+  ENABLE_ANTIALIAS: true,             // 启用抗锯齿消除锯齿边
+  MAX_PIXEL_RATIO: 2.5,               // 提高最大像素比
   // 触摸响应优化
-  TOUCH_SLOP: 8,                      // 触摸容差(px)
-  DRAG_THRESHOLD: 5,                  // 拖拽阈值(px)
+  TOUCH_SLOP: 10,                     // 触摸容差
+  DRAG_THRESHOLD: 8,                  // 拖拽阈值
+  // 渲染优化（保持禁用阴影换取性能）
+  DISABLE_SHADOWS: true,              // 移动端禁用阴影
+  DISABLE_CONTACT_SHADOWS: true,      // 禁用接触阴影
+  SIMPLIFIED_GRID: true,              // 简化网格
 };
 
 // 桌面端配置
@@ -76,11 +82,11 @@ export const DESKTOP_CONFIG = {
   VIEWCUBE_SIZE: 110,          // ViewCube桌面端尺寸
 };
 
-// 地面配置 - 优化点击检测
+// 地面配置 - 优化点击检测（缩小至40%）
 export const GROUND_CONFIG = {
-  INTERACTION_SIZE: 30,              // 扩大交互区域
-  CLICK_DURATION_THRESHOLD: 350,     // 略微增加点击时间阈值
-  CLICK_MOVE_THRESHOLD: 15,          // 增加移动容差，减少误操作
+  INTERACTION_SIZE: 12,              // 交互区域（原30的40%）
+  CLICK_DURATION_THRESHOLD: 350,     // 点击时间阈值
+  CLICK_MOVE_THRESHOLD: 15,          // 移动容差
   // 移动端专用配置
   MOBILE_CLICK_THRESHOLD: 20,        // 移动端更大的移动容差
   MOBILE_CLICK_DURATION: 400,        // 移动端更长的点击时间

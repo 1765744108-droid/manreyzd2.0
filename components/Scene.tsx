@@ -137,6 +137,7 @@ const AutoFitCamera = ({ models }: { models: ModelData[] }) => {
 
 const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: boolean }> = ({ models, onSelectModel, onUpdateModel, cameraControlsRef, shadowMapSize = 2048, isMobile = false }) => {
   const [isModelDragging, setIsModelDragging] = useState(false);
+  const [activeGizmoId, setActiveGizmoId] = useState<string | null>(null);
   const controlsRef = useRef<OrbitControlsType>(null);
   const { scene, gl } = useThree();
   
@@ -207,6 +208,17 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: b
     }
   }, [cameraControlsRef]);
   
+  // 处理模型选择 - 同时显示 Gizmo
+  const handleSelectModel = useCallback((id: string | null) => {
+    onSelectModel(id);
+    setActiveGizmoId(id);
+  }, [onSelectModel]);
+  
+  // 关闭 Gizmo
+  const handleCloseGizmo = useCallback(() => {
+    setActiveGizmoId(null);
+  }, []);
+  
   // 处理模型拖动状态变化
   const handleDragStart = useCallback(() => {
     setIsModelDragging(true);
@@ -218,20 +230,22 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: b
 
   return (
     <>
-      {/* Shape3D风格光照：柔和均匀 */}
-      <ambientLight intensity={0.8} />
+      {/* 简化光照 - 移动端只用环境光 */}
+      <ambientLight intensity={isMobile ? 1.2 : 0.8} />
       
-      {/* 半球光：模拟天空和地面反射 */}
-      <hemisphereLight 
-        args={['#ffffff', '#f0f0f0', 1.0]}
-        position={[0, 20, 0]}
-      />
+      {/* 半球光：模拟天空和地面反射 - 移动端简化 */}
+      {!isMobile && (
+        <hemisphereLight 
+          args={['#ffffff', '#f0f0f0', 1.0]}
+          position={[0, 20, 0]}
+        />
+      )}
       
-      {/* 主方向光：柔和立体感 */}
+      {/* 主方向光 - 移动端禁用阴影 */}
       <directionalLight 
         position={[10, 20, 10]} 
-        intensity={1.5}
-        castShadow 
+        intensity={isMobile ? 1.2 : 1.5}
+        castShadow={!isMobile}
         shadow-mapSize={[shadowMapSize, shadowMapSize]}
         shadow-camera-left={-8}
         shadow-camera-right={8}
@@ -242,30 +256,34 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: b
         shadow-bias={-0.0001}
       />
       
-      {/* 辅助方向光 */}
-      <directionalLight 
-        position={[-8, 15, -8]} 
-        intensity={1.0}
-        castShadow={false}
-      />
+      {/* 辅助方向光 - 移动端禁用 */}
+      {!isMobile && (
+        <directionalLight 
+          position={[-8, 15, -8]} 
+          intensity={1.0}
+          castShadow={false}
+        />
+      )}
 
-      {/* 地面网格：斜线交叉网格 - 加深颜色提升可见度 */}
-      <gridHelper 
-        args={[12, 24, '#888888', '#999999']} 
-        position={[0, 0, 0]} 
-        rotation={[0, Math.PI / 4, 0]}
-      >
-        <lineBasicMaterial attach="material" color="#888888" transparent opacity={0.8} />
-      </gridHelper>
+      {/* 地面网格 - 移动端简化，缩小至40% */}
+      {!isMobile && (
+        <gridHelper 
+          args={[5, 10, '#888888', '#999999']} 
+          position={[0, 0, 0]} 
+          rotation={[0, Math.PI / 4, 0]}
+        >
+          <lineBasicMaterial attach="material" color="#888888" transparent opacity={0.8} />
+        </gridHelper>
+      )}
             
-      {/* 底部网格：水平网格 - 加深颜色提升可见度 */}
+      {/* 底部网格 - 移动端简化网格密度，缩小至40% */}
       <gridHelper 
-        args={[12, 12, '#777777', '#aaaaaa']} 
+        args={[5, isMobile ? 3 : 5, '#777777', '#aaaaaa']} 
         position={[0, 0, 0]}
       >
-        <lineBasicMaterial attach="material" color="#777777" transparent opacity={0.7} />
+        <lineBasicMaterial attach="material" color="#777777" transparent opacity={isMobile ? 0.5 : 0.7} />
       </gridHelper>
-      <Ground onDeselect={() => onSelectModel(null)} />
+      <Ground onDeselect={() => handleSelectModel(null)} />
       
       {/* 移动端禁用ContactShadows提升性能 */}
       {!isMobile && <ContactShadows resolution={1024} scale={20} blur={2} opacity={0.5} far={10} color="#000000" />}
@@ -277,11 +295,13 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: b
         <BuildingModel 
           key={model.id} 
           data={model} 
-          onSelect={onSelectModel}
+          onSelect={handleSelectModel}
           onUpdate={onUpdateModel}
           overlapInfo={overlapInfo[model.id] || { isOverlapping: false, overlappingWith: [] }}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          showGizmo={activeGizmoId === model.id}
+          onCloseGizmo={handleCloseGizmo}
         />
       ))}
 
@@ -318,15 +338,15 @@ export const Scene: React.FC<SceneProps> = (props) => {
   // 移动端性能优化：检测设备类型
   const isMobile = useMemo(() => isMobileDevice(), []);
   
-  // 动态计算最佳DPR - 平衡清晰度与性能
+  // 动态计算最佳DPR - 移动端画质优化
   const dpr = useMemo(() => {
     if (typeof window === 'undefined') return isMobile ? MOBILE_CONFIG.DPR : DESKTOP_CONFIG.DPR;
     
     const devicePixelRatio = window.devicePixelRatio || 1;
     if (isMobile) {
-      // 移动端：基于设备像素比动态调整，不超过最大限制
+      // 移动端：使用设备原生DPR消除马赛克
       const maxDpr = Math.min(devicePixelRatio, MOBILE_CONFIG.MAX_PIXEL_RATIO);
-      return [Math.max(1.5, maxDpr * 0.75), maxDpr] as [number, number];
+      return [Math.max(1.5, maxDpr * 0.8), maxDpr] as [number, number];
     }
     return DESKTOP_CONFIG.DPR;
   }, [isMobile]);
@@ -335,24 +355,24 @@ export const Scene: React.FC<SceneProps> = (props) => {
   
   return (
     <Canvas
-      shadows={isMobile ? "basic" : "soft"} // 移动端使用基础阴影提升性能
+      shadows={isMobile ? false : "soft"} // 移动端禁用阴影换取性能
       camera={{ position: INITIAL_CAMERA_POSITION, fov: 45 }}
       style={{ background: COLORS.background, touchAction: 'none' }}
       dpr={dpr}
       performance={{ min: 0.5 }}
-      frameloop="always"
+      frameloop="demand" // 按需渲染
       gl={{
-        antialias: true, // 移动端也启用抗锯齿，显著提升清晰度
+        antialias: true, // 移动端也启用抗锯齿消除锯齿边
         alpha: false,
-        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMapping: THREE.ACESFilmicToneMapping, // 移动端也启用色调映射
         toneMappingExposure: 1.0,
         outputColorSpace: THREE.SRGBColorSpace,
         sortObjects: true,
         powerPreference: 'high-performance',
-        // 移动端优化
         precision: isMobile ? 'mediump' : 'highp', // 移动端使用中等精度
-        stencil: false, // 禁用模板缓冲区提升性能
+        stencil: false,
         depth: true,
+        logarithmicDepthBuffer: false,
       }}
     >
       <SceneContent {...props} shadowMapSize={shadowMapSize} isMobile={isMobile} />

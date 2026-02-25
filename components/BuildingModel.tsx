@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { ModelData } from '../types';
 import { COLORS, DRAG_CONFIG, ANIMATION_CONFIG, WIREFRAME_CONFIG, MATERIAL_CONFIG, MOBILE_CONFIG } from '../constants';
 import { OverlapInfo } from './Scene.tsx';
+import { ModelControlGizmo } from './ModelControlGizmo';
 
 // 移动端检测
 const isMobileDevice = () => {
@@ -80,6 +81,8 @@ interface BuildingModelProps {
   overlapInfo: OverlapInfo;
   onDragStart?: () => void;
   onDragEnd?: () => void;
+  showGizmo?: boolean;
+  onCloseGizmo?: () => void;
 }
 
 // 深度比较 partialVisibility 对象
@@ -101,7 +104,7 @@ const areArraysEqual = (
   return prev[0] === next[0] && prev[1] === next[1] && prev[2] === next[2];
 };
 
-const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, onUpdate, overlapInfo, onDragStart, onDragEnd }) => {
+const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, onUpdate, overlapInfo, onDragStart, onDragEnd, showGizmo, onCloseGizmo }) => {
   // 获取相机用于视角感知拖拽
   const { camera } = useThree();
   
@@ -128,6 +131,15 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   const positionRef = useRef<[number, number, number]>(data.position);
   const lastPointerPosRef = useRef<{ x: number; y: number } | null>(null);
   const isDraggingRef = useRef(false);
+  
+  // 保存初始位置用于重置
+  const initialStateRef = useRef<{ position: [number, number, number]; rotation: [number, number, number] }>({
+    position: [...data.position],
+    rotation: [...data.rotation],
+  });
+  
+  // 多点触摸检测 - 用于禁止模型拖拽以支持双指缩放
+  const touchCountRef = useRef<number>(0);
   
   // RAF 节流相关
   const rafIdRef = useRef<number | null>(null);
@@ -344,8 +356,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
+        // 移动端禁用阴影提升性能
+        child.castShadow = !isMobile;
+        child.receiveShadow = !isMobile;
   
         if (child.material) {
           const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -374,7 +387,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
             if (mat instanceof THREE.MeshStandardMaterial) {
               mat.roughness = MATERIAL_CONFIG.ROUGHNESS;
               mat.metalness = MATERIAL_CONFIG.METALNESS;
-              mat.envMapIntensity = MATERIAL_CONFIG.ENV_MAP_INTENSITY;
+              mat.envMapIntensity = isMobile ? 1.0 : MATERIAL_CONFIG.ENV_MAP_INTENSITY; // 移动端降低环境光强度
               mat.flatShading = false;
             }
               
@@ -406,7 +419,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           });
         }
           
-        // 添加线框轮廓（常规模式下）- 所有模型都需要显示
+        // 添加线框轮廓（常规模式下）- 移动端使用更高阈值减少线条
         const meshId = `${modelId}-${child.uuid}`;
         const alreadyHas = wireframesCreatedRef.current.has(meshId);
         
@@ -416,13 +429,15 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
               return;
             }
             
-            const edges = new THREE.EdgesGeometry(child.geometry, WIREFRAME_CONFIG.EDGE_ANGLE_THRESHOLD);
+            // 移动端使用更高的边缘角度阈值，减少线条数量
+            const edgeThreshold = isMobile ? WIREFRAME_CONFIG.MOBILE_EDGE_THRESHOLD : WIREFRAME_CONFIG.EDGE_ANGLE_THRESHOLD;
+            const edges = new THREE.EdgesGeometry(child.geometry, edgeThreshold);
             const wireframeColor = modelId === 'model-2' ? COLORS.wireframe2 : COLORS.wireframe1;
               
             const lineMaterial = new THREE.LineBasicMaterial({ 
               color: wireframeColor,
               transparent: true,
-              opacity: 0.8,
+              opacity: isMobile ? 0.6 : 0.8, // 移动端降低线框透明度
               depthTest: true,
               depthWrite: false,
               linewidth: WIREFRAME_CONFIG.LINE_WIDTH,
@@ -442,7 +457,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         }
       }
     });
-  }, [data.id, data.opacity, data.wireframe]);
+  }, [data.id, data.opacity, data.wireframe, isMobile]);
 
   // 设置材质属性 - 确保每次模型或材质参数变化时都重新应用
   useEffect(() => {
@@ -513,7 +528,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
   // 通过正确的深度设置和渲染顺序已经可以正确显示重叠效果
 
   // 拖拽处理 - 极致性能优化，完全跳过React状态更新
-  // RAF 节流的实际位置更新函数
+  // RAF 节流的实际位置更新函数 - 包含边界约束
   const applyPendingMove = useCallback(() => {
     if (!pendingMoveRef.current || !groupRef.current || !dragContextRef.current) {
       rafIdRef.current = null;
@@ -527,10 +542,14 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     const worldDeltaX = (rightOnPlane.x * deltaX - upOnPlane.x * deltaY) * moveSpeed;
     const worldDeltaZ = (rightOnPlane.z * deltaX - upOnPlane.z * deltaY) * moveSpeed;
     
-    // 获取当前位置并计算新位置
+    // 获取当前位置并计算新位置，应用边界约束
     const currentPos = positionRef.current;
-    const newX = Math.max(boundaryMin, Math.min(boundaryMax, currentPos[0] + worldDeltaX));
-    const newZ = Math.max(boundaryMin, Math.min(boundaryMax, currentPos[2] + worldDeltaZ));
+    const targetX = currentPos[0] + worldDeltaX;
+    const targetZ = currentPos[2] + worldDeltaZ;
+    
+    // 应用边界限制 - 确保模型始终在可视范围内
+    const newX = Math.max(boundaryMin, Math.min(boundaryMax, targetX));
+    const newZ = Math.max(boundaryMin, Math.min(boundaryMax, targetZ));
     
     // 更新ref
     positionRef.current = [newX, currentPos[1], newZ];
@@ -544,22 +563,27 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     rafIdRef.current = null;
   }, []);
   
-  // 全局移动处理器（用useCallback缓存，避免重建）
+  // 全局移动处理器（用useCallback缓存，避免重建）- 极致性能优化
   const handleGlobalMove = useCallback((moveEvent: PointerEvent) => {
-    if (!isDraggingRef.current || !lastPointerPosRef.current || !groupRef.current || !dragContextRef.current) return;
+    // 快速跳过检查
+    if (!isDraggingRef.current || !lastPointerPosRef.current || !dragContextRef.current) return;
     
     // 计算屏幕空间移动增量
     const deltaX = moveEvent.clientX - lastPointerPosRef.current.x;
     const deltaY = moveEvent.clientY - lastPointerPosRef.current.y;
     
+    // 移动端使用更高阈值减少抖动和计算量
+    const minThreshold = isMobile ? DRAG_CONFIG.MOBILE_MIN_THRESHOLD : DRAG_CONFIG.MIN_MOVE_THRESHOLD;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+    
+    // 快速跳过微小移动
+    if (absDeltaX < minThreshold && absDeltaY < minThreshold) return;
+    
     // 立即更新指针位置
     lastPointerPosRef.current = { x: moveEvent.clientX, y: moveEvent.clientY };
     
-    // 移动端使用更高阈值减少抖动
-    const minThreshold = isMobile ? DRAG_CONFIG.MOBILE_MIN_THRESHOLD : DRAG_CONFIG.MIN_MOVE_THRESHOLD;
-    if (Math.abs(deltaX) < minThreshold && Math.abs(deltaY) < minThreshold) return;
-    
-    // 累加移动增量（如果已有待处理的移动）
+    // 累加移动增量
     if (pendingMoveRef.current) {
       pendingMoveRef.current.deltaX += deltaX;
       pendingMoveRef.current.deltaY += deltaY;
@@ -615,6 +639,11 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     
   const handlePointerDown = useCallback((e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
+    
+    // 移动端：如果当前有多个触摸点，不启动拖拽，让 OrbitControls 处理双指手势
+    if (isMobile && touchCountRef.current > 1) {
+      return;
+    }
       
     // 选中模型
     if (!data.selected) {
@@ -678,6 +707,33 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     window.addEventListener('pointerup', handleGlobalUp);
     window.addEventListener('pointercancel', handleGlobalUp);
   }, [data.selected, data.id, data.locked, onSelect, onDragStart, camera, handleGlobalMove, handleGlobalUp, isMobile]);
+  
+  // 全局触摸事件监听 - 检测多点触摸以支持双指缩放
+  useEffect(() => {
+    if (!isMobile) return;
+    
+    const handleTouchStart = (e: TouchEvent) => {
+      touchCountRef.current = e.touches.length;
+      // 如果正在拖拽且检测到多点触摸，立即停止拖拽让 OrbitControls 接管
+      if (isDraggingRef.current && e.touches.length > 1) {
+        handleGlobalUp();
+      }
+    };
+    
+    const handleTouchEnd = (e: TouchEvent) => {
+      touchCountRef.current = e.touches.length;
+    };
+    
+    window.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart, { capture: true });
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [isMobile, handleGlobalUp]);
 
   const handleClick = useCallback((e: ThreeEvent<MouseEvent>) => {
     // 只有在没有拖拽时才触发点击
@@ -733,9 +789,9 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
         </group>
       </group>
       
-      {/* 扩大点击热区 - 透明的辅助点击区域 */}
+      {/* 扩大点击热区 - 透明的辅助点击区域（移动端更大） */}
       <mesh visible={false}>
-        <boxGeometry args={[3, 3, 3]} />
+        <boxGeometry args={[5, 5, 5]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
       
@@ -746,6 +802,17 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           color={COLORS.selection} 
           screenspace={true}
           opacity={0.8}
+        />
+      )}
+      
+      {/* 坐标控制面板 - 当模型被选中时显示 */}
+      {data.selected && showGizmo && onCloseGizmo && (
+        <ModelControlGizmo
+          model={data}
+          onUpdate={onUpdate}
+          onClose={onCloseGizmo}
+          isMobile={isMobile}
+          initialPosition={initialStateRef.current}
         />
       )}
     </group>
@@ -784,7 +851,9 @@ const BuildingModel: React.FC<BuildingModelProps> = React.memo((props) => {
     prevProps.onSelect === nextProps.onSelect && 
     prevProps.onUpdate === nextProps.onUpdate &&
     prevProps.onDragStart === nextProps.onDragStart &&
-    prevProps.onDragEnd === nextProps.onDragEnd;
+    prevProps.onDragEnd === nextProps.onDragEnd &&
+    prevProps.showGizmo === nextProps.showGizmo &&
+    prevProps.onCloseGizmo === nextProps.onCloseGizmo;
   
   // 重叠信息比较
   const overlapEqual = 

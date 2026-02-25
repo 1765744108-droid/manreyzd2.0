@@ -245,7 +245,7 @@ export const SingleModelViewer: React.FC<SingleModelViewerProps> = ({ model, onB
         <div className="flex items-center gap-2">
           <button
             onClick={onBack}
-            className={`flex items-center gap-2 bg-white/95 backdrop-blur hover:bg-white rounded-xl shadow-lg transition-all touch-manipulation active:scale-95 ${
+            className={`flex items-center gap-2 bg-white/95 hover:bg-white rounded-xl shadow-lg transition-transform touch-manipulation active:scale-95 ${
               isMobile ? 'px-3 py-3' : 'px-4 py-2.5'
             }`}
           >

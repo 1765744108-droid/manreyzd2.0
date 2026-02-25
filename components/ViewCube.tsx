@@ -633,7 +633,7 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
     return (
       <button
         onClick={toggleCollapse}
-        className="absolute pointer-events-auto bg-white/95 backdrop-blur rounded-xl shadow-lg p-3 hover:bg-gray-50 active:scale-90 transition-all touch-manipulation"
+        className="absolute pointer-events-auto bg-white/95 rounded-xl shadow-lg p-3 hover:bg-gray-50 active:scale-90 transition-transform touch-manipulation"
         style={{
           top: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))',
           right: 'max(12px, env(safe-area-inset-right, 8px))',
@@ -719,7 +719,7 @@ export const ViewCube: React.FC<ViewCubeProps> = ({ mainCameraControlsRef }) => 
       {/* 折叠按钮 - 移动端优化 */}
       <button
         onClick={toggleCollapse}
-        className="absolute -bottom-1 -right-1 bg-white rounded-full shadow-md p-2 hover:bg-gray-100 active:scale-90 transition-all touch-manipulation"
+        className="absolute -bottom-1 -right-1 bg-white rounded-full shadow-md p-2 hover:bg-gray-100 active:scale-90 transition-transform touch-manipulation"
         style={{
           minWidth: '32px',
           minHeight: '32px',

@@ -65,13 +65,13 @@ export const ModelGallery: React.FC<ModelGalleryProps> = ({ onSelectModel, onBac
       }}
     >
       {/* 顶部导航栏 */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white/90 border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             {/* 返回按钮 */}
             <button
               onClick={onBack}
-              className={`flex items-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all touch-manipulation active:scale-95 ${
+              className={`flex items-center gap-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors touch-manipulation active:scale-95 ${
                 isMobile ? 'px-3 py-3' : 'px-4 py-2.5'
               }`}
             >
@@ -146,7 +146,7 @@ export const ModelGallery: React.FC<ModelGalleryProps> = ({ onSelectModel, onBac
               <button
                 key={model.id}
                 onClick={() => onSelectModel(model)}
-                className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 touch-manipulation border border-gray-100 hover:border-blue-300 active:scale-[0.96] active:shadow-md"
+                className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-200 touch-manipulation border border-gray-100 hover:border-blue-300 active:scale-[0.96]"
                 style={{
                   animationDelay: `${index * 30}ms`,
                 }}
@@ -180,7 +180,7 @@ export const ModelGallery: React.FC<ModelGalleryProps> = ({ onSelectModel, onBac
                   {/* 桌面端悬停提示 */}
                   {!isMobile && (
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <span className="px-4 py-2 bg-white/90 backdrop-blur-sm rounded-full text-sm font-medium text-blue-600 shadow-lg">
+                      <span className="px-4 py-2 bg-white/90 rounded-full text-sm font-medium text-blue-600 shadow-lg">
                         查看模型
                       </span>
                     </div>
@@ -222,7 +222,7 @@ export const ModelGallery: React.FC<ModelGalleryProps> = ({ onSelectModel, onBac
       {showBackToTop && (
         <button
           onClick={scrollToTop}
-          className="fixed z-20 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg transition-all touch-manipulation active:scale-90 animate-bounce-in"
+          className="fixed z-20 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg transition-transform touch-manipulation active:scale-90 animate-bounce-in"
           style={{
             bottom: 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
             right: 'max(16px, env(safe-area-inset-right, 8px))',
