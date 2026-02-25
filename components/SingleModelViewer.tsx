@@ -1,8 +1,8 @@
-import React, { useRef, useCallback, useMemo, Suspense, useState } from 'react';
+import React, { useRef, useCallback, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Center, Html, Line } from '@react-three/drei';
-import { ArrowLeft, RotateCw, Home, Camera, Eye, EyeOff } from 'lucide-react';
-import { GalleryModel, ModelMarker } from '../galleryData';
+import { OrbitControls, useGLTF, Center, Html } from '@react-three/drei';
+import { ArrowLeft, RotateCw, Home, Camera } from 'lucide-react';
+import { GalleryModel } from '../galleryData';
 import { COLORS, MOBILE_CONFIG, DESKTOP_CONFIG, SINGLE_VIEWER_CONFIG } from '../constants';
 import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
 import * as THREE from 'three';
@@ -41,86 +41,6 @@ const WireframeOutline: React.FC<{ geometry: THREE.BufferGeometry; color: string
         linewidth={1}
       />
     </lineSegments>
-  );
-};
-
-// 单个标注点组件 - 带引导线和标签
-const MarkerPoint: React.FC<{ marker: ModelMarker; scale: number }> = ({ marker, scale }) => {
-  const [hovered, setHovered] = useState(false);
-  const color = marker.color || '#ffffff';
-  
-  // 引导线起点（模型位置）和终点（标签位置）
-  const lineStart: [number, number, number] = [
-    marker.position[0] * scale + 0.15,
-    marker.position[1] * scale,
-    marker.position[2] * scale
-  ];
-  const lineEnd: [number, number, number] = [
-    marker.position[0] * scale + 0.4,
-    marker.position[1] * scale + 0.1,
-    marker.position[2] * scale
-  ];
-  
-  return (
-    <group>
-      {/* 标注点圆球 */}
-      <mesh 
-        position={[marker.position[0] * scale, marker.position[1] * scale, marker.position[2] * scale]}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-      >
-        <sphereGeometry args={[0.03, 16, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={hovered ? 1 : 0.9} />
-      </mesh>
-      
-      {/* 引导线 */}
-      <Line
-        points={[lineStart, lineEnd]}
-        color={color}
-        lineWidth={2}
-        transparent
-        opacity={0.8}
-        dashed={marker.type === 'door'}
-        dashSize={0.02}
-        gapSize={0.01}
-      />
-      
-      {/* 文字标签 */}
-      <Html
-        position={lineEnd}
-        center
-        style={{ pointerEvents: 'none' }}
-      >
-        <div 
-          className="flex items-center gap-1 px-2 py-1 rounded-lg shadow-lg text-white text-xs font-bold whitespace-nowrap"
-          style={{ 
-            backgroundColor: color,
-            transform: 'translateX(20px)',
-            opacity: 0.95,
-          }}
-        >
-          {marker.type === 'door' && <span>➜</span>}
-          {marker.label}
-        </div>
-      </Html>
-    </group>
-  );
-};
-
-// 标注层组件
-const MarkersGroup: React.FC<{ markers: ModelMarker[]; scale: number; visible: boolean }> = ({ 
-  markers, 
-  scale, 
-  visible 
-}) => {
-  if (!visible || !markers || markers.length === 0) return null;
-  
-  return (
-    <group>
-      {markers.map((marker) => (
-        <MarkerPoint key={marker.id} marker={marker} scale={scale} />
-      ))}
-    </group>
   );
 };
 
@@ -211,7 +131,6 @@ const COLOR_LEGEND = [
 
 export const SingleModelViewer: React.FC<SingleModelViewerProps> = ({ model, onBack }) => {
   const cameraControlsRef = useRef<OrbitControlsType | null>(null);
-  const [showMarkers, setShowMarkers] = useState(true); // 标注显示开关
   
   // 移动端检测
   const isMobile = useMemo(() => {
@@ -301,12 +220,6 @@ export const SingleModelViewer: React.FC<SingleModelViewerProps> = ({ model, onB
           
           <Suspense fallback={<LoadingIndicator />}>
             <Model url={model.modelUrl} />
-            {/* 楼层和位置标注 */}
-            <MarkersGroup 
-              markers={model.markers || []} 
-              scale={SINGLE_VIEWER_CONFIG.MODEL_SCALE} 
-              visible={showMarkers}
-            />
           </Suspense>
           
           {/* 自由缩放的OrbitControls - 无距离限制 */}
@@ -360,15 +273,6 @@ export const SingleModelViewer: React.FC<SingleModelViewerProps> = ({ model, onB
         
         {/* 右侧：工具按钮 */}
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowMarkers(!showMarkers)}
-            className={`backdrop-blur hover:bg-white rounded-xl shadow-lg transition-all touch-manipulation active:scale-95 ${
-              isMobile ? 'p-3' : 'p-2.5'
-            } ${showMarkers ? 'bg-blue-500 text-white' : 'bg-white/95 text-gray-700'}`}
-            title={showMarkers ? '隐藏标注' : '显示标注'}
-          >
-            {showMarkers ? <Eye size={isMobile ? 22 : 20} /> : <EyeOff size={isMobile ? 22 : 20} />}
-          </button>
           <button
             onClick={handleResetView}
             className={`bg-white/95 backdrop-blur hover:bg-white rounded-xl shadow-lg transition-all touch-manipulation active:scale-95 ${
