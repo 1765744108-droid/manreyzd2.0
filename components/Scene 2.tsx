@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Canvas, useThree, ThreeEvent } from '@react-three/fiber';
-import { OrbitControls, Html, useProgress } from '@react-three/drei';
+import { OrbitControls, ContactShadows, Html, useProgress } from '@react-three/drei';
 import * as THREE from 'three';
 import BuildingModel from './BuildingModel.tsx';
 import { ModelData } from '../types';
@@ -139,21 +139,13 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: b
   const [isModelDragging, setIsModelDragging] = useState(false);
   const [activeGizmoId, setActiveGizmoId] = useState<string | null>(null);
   const controlsRef = useRef<OrbitControlsType>(null);
-  const { scene, gl, invalidate } = useThree();
+  const { scene, gl } = useThree();
   
   // 设置场景背景色 - Shape3D风格：浅灰白色
   useEffect(() => {
     scene.background = new THREE.Color('#f5f5f5');
     gl.setClearColor('#f5f5f5', 1);
   }, [scene, gl]);
-  
-  // 强制刷新渲染 - 确保模型显示
-  useEffect(() => {
-    const timer = setInterval(() => {
-      invalidate();
-    }, 100);
-    return () => clearInterval(timer);
-  }, [invalidate]);
   
   // 使用 useMemo 缓存重叠检测计算
   const overlapInfo = useMemo(() => {
@@ -239,16 +231,41 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: b
   return (
     <>
       {/* 简化光照 - 移动端只用环境光 */}
-      <ambientLight intensity={1.5} />
+      <ambientLight intensity={isMobile ? 1.2 : 0.8} />
       
-      {/* 主方向光 - 简化配置 */}
+      {/* 半球光：模拟天空和地面反射 - 移动端简化 */}
+      {!isMobile && (
+        <hemisphereLight 
+          args={['#ffffff', '#f0f0f0', 1.0]}
+          position={[0, 20, 0]}
+        />
+      )}
+      
+      {/* 主方向光 - 移动端禁用阴影 */}
       <directionalLight 
         position={[10, 20, 10]} 
-        intensity={1.0}
-        castShadow={false}
+        intensity={isMobile ? 1.2 : 1.5}
+        castShadow={!isMobile}
+        shadow-mapSize={[shadowMapSize, shadowMapSize]}
+        shadow-camera-left={-8}
+        shadow-camera-right={8}
+        shadow-camera-top={8}
+        shadow-camera-bottom={-8}
+        shadow-camera-near={0.1}
+        shadow-camera-far={50}
+        shadow-bias={-0.0001}
       />
+      
+      {/* 辅助方向光 - 移动端禁用 */}
+      {!isMobile && (
+        <directionalLight 
+          position={[-8, 15, -8]} 
+          intensity={1.0}
+          castShadow={false}
+        />
+      )}
 
-      {/* 地面网格 - 移动端简化 */}
+      {/* 地面网格 - 移动端简化，缩小至40% */}
       {!isMobile && (
         <gridHelper 
           args={[5, 10, '#888888', '#999999']} 
@@ -259,14 +276,17 @@ const SceneContent: React.FC<SceneProps & { shadowMapSize?: number; isMobile?: b
         </gridHelper>
       )}
             
-      {/* 底部网格 */}
+      {/* 底部网格 - 移动端简化网格密度，缩小至40% */}
       <gridHelper 
         args={[5, isMobile ? 3 : 5, '#777777', '#aaaaaa']} 
         position={[0, 0, 0]}
       >
-        <lineBasicMaterial attach="material" color="#777777" transparent opacity={isMobile ? 0.3 : 0.7} />
+        <lineBasicMaterial attach="material" color="#777777" transparent opacity={isMobile ? 0.5 : 0.7} />
       </gridHelper>
       <Ground onDeselect={() => handleSelectModel(null)} />
+      
+      {/* 移动端禁用ContactShadows提升性能 */}
+      {!isMobile && <ContactShadows resolution={1024} scale={20} blur={2} opacity={0.5} far={10} color="#000000" />}
       
       {/* 加载进度显示 */}
       <Loader />
@@ -318,13 +338,15 @@ export const Scene: React.FC<SceneProps> = (props) => {
   // 移动端性能优化：检测设备类型
   const isMobile = useMemo(() => isMobileDevice(), []);
   
-  // 动态计算最佳DPR - 移动端性能优先
+  // 动态计算最佳DPR - 移动端画质优化
   const dpr = useMemo(() => {
     if (typeof window === 'undefined') return isMobile ? MOBILE_CONFIG.DPR : DESKTOP_CONFIG.DPR;
     
+    const devicePixelRatio = window.devicePixelRatio || 1;
     if (isMobile) {
-      // 移动端：使用固定低 DPR 确保流畅
-      return [1, 1.5] as [number, number];
+      // 移动端：使用设备原生DPR消除马赛克
+      const maxDpr = Math.min(devicePixelRatio, MOBILE_CONFIG.MAX_PIXEL_RATIO);
+      return [Math.max(1.5, maxDpr * 0.8), maxDpr] as [number, number];
     }
     return DESKTOP_CONFIG.DPR;
   }, [isMobile]);
@@ -333,23 +355,24 @@ export const Scene: React.FC<SceneProps> = (props) => {
   
   return (
     <Canvas
-      shadows={false} // 全平台禁用阴影确保流畅
+      shadows={isMobile ? false : "soft"} // 移动端禁用阴影换取性能
       camera={{ position: INITIAL_CAMERA_POSITION, fov: 45 }}
       style={{ background: COLORS.background, touchAction: 'none' }}
       dpr={dpr}
-      performance={{ min: 0.3 }}
-      frameloop="always" // 始终渲染，确保模型显示
+      performance={{ min: 0.5 }}
+      frameloop="demand" // 按需渲染
       gl={{
-        antialias: !isMobile, // 移动端禁用抗锯齿
+        antialias: true, // 移动端也启用抗锯齿消除锯齿边
         alpha: false,
-        toneMapping: THREE.NoToneMapping, // 禁用色调映射提升性能
+        toneMapping: THREE.ACESFilmicToneMapping, // 移动端也启用色调映射
+        toneMappingExposure: 1.0,
         outputColorSpace: THREE.SRGBColorSpace,
+        sortObjects: true,
         powerPreference: 'high-performance',
-        precision: isMobile ? 'lowp' : 'highp', // 移动端使用低精度
+        precision: isMobile ? 'mediump' : 'highp', // 移动端使用中等精度
         stencil: false,
         depth: true,
         logarithmicDepthBuffer: false,
-        failIfMajorPerformanceCaveat: false, // 不因性能问题失败
       }}
     >
       <SceneContent {...props} shadowMapSize={shadowMapSize} isMobile={isMobile} />

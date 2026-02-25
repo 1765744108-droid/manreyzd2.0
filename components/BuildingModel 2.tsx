@@ -343,7 +343,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     });
   }, [fullModel.scene, rectangularClone, otherClone]);
 
-  // 缓存材质设置回调 - 移动端简化配置
+  // 缓存材质设置回调 - 高质量渲染配置
   // 使用 useRef 存储线框状态，避免重建
   const wireframesCreatedRef = useRef<Set<string>>(new Set());
     
@@ -357,8 +357,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         // 移动端禁用阴影提升性能
-        child.castShadow = false;
-        child.receiveShadow = false;
+        child.castShadow = !isMobile;
+        child.receiveShadow = !isMobile;
   
         if (child.material) {
           const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -387,7 +387,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
             if (mat instanceof THREE.MeshStandardMaterial) {
               mat.roughness = MATERIAL_CONFIG.ROUGHNESS;
               mat.metalness = MATERIAL_CONFIG.METALNESS;
-              mat.envMapIntensity = 0.5; // 降低环境光强度
+              mat.envMapIntensity = isMobile ? 1.0 : MATERIAL_CONFIG.ENV_MAP_INTENSITY; // 移动端降低环境光强度
               mat.flatShading = false;
             }
               
@@ -419,10 +419,7 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           });
         }
           
-        // 移动端禁用线框轮廓，提升性能
-        if (isMobile) return;
-        
-        // 添加线框轮廓（常规模式下）
+        // 添加线框轮廓（常规模式下）- 移动端使用更高阈值减少线条
         const meshId = `${modelId}-${child.uuid}`;
         const alreadyHas = wireframesCreatedRef.current.has(meshId);
         
@@ -432,14 +429,15 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
               return;
             }
             
-            const edgeThreshold = WIREFRAME_CONFIG.EDGE_ANGLE_THRESHOLD;
+            // 移动端使用更高的边缘角度阈值，减少线条数量
+            const edgeThreshold = isMobile ? WIREFRAME_CONFIG.MOBILE_EDGE_THRESHOLD : WIREFRAME_CONFIG.EDGE_ANGLE_THRESHOLD;
             const edges = new THREE.EdgesGeometry(child.geometry, edgeThreshold);
             const wireframeColor = modelId === 'model-2' ? COLORS.wireframe2 : COLORS.wireframe1;
               
             const lineMaterial = new THREE.LineBasicMaterial({ 
               color: wireframeColor,
               transparent: true,
-              opacity: 0.8,
+              opacity: isMobile ? 0.6 : 0.8, // 移动端降低线框透明度
               depthTest: true,
               depthWrite: false,
               linewidth: WIREFRAME_CONFIG.LINE_WIDTH,
@@ -808,11 +806,11 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
       )}
       
       {/* 坐标控制面板 - 当模型被选中时显示 */}
-      {data.selected && showGizmo && (
+      {data.selected && showGizmo && onCloseGizmo && (
         <ModelControlGizmo
           model={data}
           onUpdate={onUpdate}
-          onClose={onCloseGizmo || (() => {})}
+          onClose={onCloseGizmo}
           isMobile={isMobile}
           initialPosition={initialStateRef.current}
         />

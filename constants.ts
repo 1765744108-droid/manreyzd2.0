@@ -17,17 +17,17 @@ export const INITIAL_CAMERA_POSITION: [number, number, number] = [13.5, 13.5, 13
 
 // 拖拽配置 - 移动端触控优化
 export const DRAG_CONFIG = {
-  BASE_MOVE_SPEED: 0.015,      // 基础移动速度
-  MIN_DISTANCE_FACTOR: 0.5,    // 最小距离系数
-  MAX_DISTANCE_FACTOR: 2,      // 最大距离系数
-  DISTANCE_REFERENCE: 10,      // 距离参考值
-  MIN_MOVE_THRESHOLD: 0.5,     // 最小移动阈值（像素）
-  BOUNDARY_MIN: -3,            // 拖拽边界最小值
-  BOUNDARY_MAX: 3,             // 拖拽边界最大值
-  // 移动端拖拽优化 - 降低阈值提高精准度
-  MOBILE_MOVE_SPEED: 0.018,    // 移动端移动速度（提高响应）
-  MOBILE_MIN_THRESHOLD: 1.5,   // 移动端阈值（降低提高精准度）
-  MOBILE_DEBOUNCE_MS: 16,      // 移动端防抖时间（约一帧）
+  BASE_MOVE_SPEED: 0.015,
+  MIN_DISTANCE_FACTOR: 0.5,
+  MAX_DISTANCE_FACTOR: 2,
+  DISTANCE_REFERENCE: 10,
+  MIN_MOVE_THRESHOLD: 0.5,
+  BOUNDARY_MIN: -5,            // 扩大拖拽范围
+  BOUNDARY_MAX: 5,
+  // 移动端拖拽优化
+  MOBILE_MOVE_SPEED: 0.025,    // 提高移动速度
+  MOBILE_MIN_THRESHOLD: 2,     // 适中阈值
+  MOBILE_DEBOUNCE_MS: 0,       // 无防抖
 };
 
 // 动画配置
@@ -57,22 +57,19 @@ export const WIREFRAME_CONFIG = {
   MOBILE_EDGE_THRESHOLD: 25,   // 移动端更高阈值
 };
 
-// 移动端配置 - 画质与性能平衡
+// 移动端配置 - 性能优先
 export const MOBILE_CONFIG = {
-  DPR: [1.5, 2.5] as [number, number],  // 提升DPR消除马赛克
-  SHADOW_MAP_SIZE: 256,               // 保持低阴影质量
-  MIN_TOUCH_TARGET: 48,               // 触摸目标
-  VIEWCUBE_SIZE: 80,                  // 稍小的ViewCube
-  // 移动端画质优化
-  ENABLE_ANTIALIAS: true,             // 启用抗锯齿消除锯齿边
-  MAX_PIXEL_RATIO: 2.5,               // 提高最大像素比
-  // 触摸响应优化
-  TOUCH_SLOP: 10,                     // 触摸容差
-  DRAG_THRESHOLD: 8,                  // 拖拽阈值
-  // 渲染优化（保持禁用阴影换取性能）
-  DISABLE_SHADOWS: true,              // 移动端禁用阴影
-  DISABLE_CONTACT_SHADOWS: true,      // 禁用接触阴影
-  SIMPLIFIED_GRID: true,              // 简化网格
+  DPR: [1, 1.5] as [number, number],  // 降低DPR优先流畅性
+  SHADOW_MAP_SIZE: 256,
+  MIN_TOUCH_TARGET: 48,
+  VIEWCUBE_SIZE: 80,
+  ENABLE_ANTIALIAS: false,            // 移动端禁用抗锯齿提升性能
+  MAX_PIXEL_RATIO: 1.5,               // 降低最大像素比
+  TOUCH_SLOP: 5,                      // 降低触摸容差提高响应
+  DRAG_THRESHOLD: 5,                  // 降低拖拽阈值
+  DISABLE_SHADOWS: true,
+  DISABLE_CONTACT_SHADOWS: true,
+  SIMPLIFIED_GRID: true,
 };
 
 // 桌面端配置
