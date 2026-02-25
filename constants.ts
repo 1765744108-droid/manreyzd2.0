@@ -59,14 +59,14 @@ export const WIREFRAME_CONFIG = {
 
 // 移动端配置 - 性能优先
 export const MOBILE_CONFIG = {
-  DPR: [1, 1.5] as [number, number],  // 降低DPR优先流畅性
+  DPR: [1.5, 3] as [number, number],  // 提高DPR消除马赛克
   SHADOW_MAP_SIZE: 256,
   MIN_TOUCH_TARGET: 48,
   VIEWCUBE_SIZE: 80,
   ENABLE_ANTIALIAS: false,            // 移动端禁用抗锯齿提升性能
-  MAX_PIXEL_RATIO: 1.5,               // 降低最大像素比
-  TOUCH_SLOP: 5,                      // 降低触摸容差提高响应
-  DRAG_THRESHOLD: 5,                  // 降低拖拽阈值
+  MAX_PIXEL_RATIO: 3,                 // 提高最大像素比消除模糊
+  TOUCH_SLOP: 5,
+  DRAG_THRESHOLD: 5,
   DISABLE_SHADOWS: true,
   DISABLE_CONTACT_SHADOWS: true,
   SIMPLIFIED_GRID: true,

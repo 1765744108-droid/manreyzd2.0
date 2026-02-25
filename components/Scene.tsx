@@ -318,13 +318,15 @@ export const Scene: React.FC<SceneProps> = (props) => {
   // 移动端性能优化：检测设备类型
   const isMobile = useMemo(() => isMobileDevice(), []);
   
-  // 动态计算最佳DPR - 移动端性能优先
+  // 动态计算最佳DPR - 移动端使用设备原生DPR消除马赛克
   const dpr = useMemo(() => {
     if (typeof window === 'undefined') return isMobile ? MOBILE_CONFIG.DPR : DESKTOP_CONFIG.DPR;
     
+    const devicePixelRatio = window.devicePixelRatio || 1;
     if (isMobile) {
-      // 移动端：使用固定低 DPR 确保流畅
-      return [1, 1.5] as [number, number];
+      // 移动端：使用设备原生 DPR 消除马赛克
+      const maxDpr = Math.min(devicePixelRatio, MOBILE_CONFIG.MAX_PIXEL_RATIO);
+      return [Math.max(1.5, maxDpr * 0.8), maxDpr] as [number, number];
     }
     return DESKTOP_CONFIG.DPR;
   }, [isMobile]);
