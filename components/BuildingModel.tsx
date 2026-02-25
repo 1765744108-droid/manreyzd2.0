@@ -419,9 +419,6 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
           });
         }
           
-        // 移动端禁用线框轮廓，提升性能
-        if (isMobile) return;
-        
         // 添加线框轮廓（常规模式下）
         const meshId = `${modelId}-${child.uuid}`;
         const alreadyHas = wireframesCreatedRef.current.has(meshId);
@@ -432,7 +429,8 @@ const BuildingModelContent: React.FC<BuildingModelProps> = ({ data, onSelect, on
               return;
             }
             
-            const edgeThreshold = WIREFRAME_CONFIG.EDGE_ANGLE_THRESHOLD;
+            // 移动端使用更高的边缘阈值减少线条数量，提升性能
+            const edgeThreshold = isMobile ? WIREFRAME_CONFIG.MOBILE_EDGE_THRESHOLD : WIREFRAME_CONFIG.EDGE_ANGLE_THRESHOLD;
             const edges = new THREE.EdgesGeometry(child.geometry, edgeThreshold);
             const wireframeColor = modelId === 'model-2' ? COLORS.wireframe2 : COLORS.wireframe1;
               
