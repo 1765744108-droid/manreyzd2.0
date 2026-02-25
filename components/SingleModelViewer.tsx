@@ -1,7 +1,7 @@
-import React, { useRef, useCallback, useMemo, Suspense, useState } from 'react';
+import React, { useRef, useCallback, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Center, Html } from '@react-three/drei';
-import { ArrowLeft, RotateCw, Home, Camera, Info, X } from 'lucide-react';
+import { ArrowLeft, RotateCw, Home, Camera } from 'lucide-react';
 import { GalleryModel } from '../galleryData';
 import { COLORS, MOBILE_CONFIG, DESKTOP_CONFIG, SINGLE_VIEWER_CONFIG } from '../constants';
 import type { OrbitControls as OrbitControlsType } from 'three-stdlib';
@@ -131,7 +131,6 @@ const COLOR_LEGEND = [
 
 export const SingleModelViewer: React.FC<SingleModelViewerProps> = ({ model, onBack }) => {
   const cameraControlsRef = useRef<OrbitControlsType | null>(null);
-  const [showLegend, setShowLegend] = useState(false);
   
   // 移动端检测
   const isMobile = useMemo(() => {
@@ -329,66 +328,45 @@ export const SingleModelViewer: React.FC<SingleModelViewerProps> = ({ model, onB
         </div>
       )}
       
-      {/* 颜色图例按钮 */}
-      <button
-        onClick={() => setShowLegend(!showLegend)}
-        className={`absolute z-20 bg-white/95 backdrop-blur hover:bg-white rounded-xl shadow-lg transition-all touch-manipulation active:scale-95 ${
-          isMobile ? 'p-3' : 'p-2.5'
+      {/* 颜色图例面板 - 常驻显示 */}
+      <div 
+        className={`absolute z-20 bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200/50 pointer-events-none ${
+          isMobile 
+            ? 'right-3 top-auto' 
+            : 'right-4'
         }`}
         style={{
-          left: isMobile ? '12px' : '16px',
+          top: isMobile 
+            ? 'auto'
+            : 'max(70px, calc(env(safe-area-inset-top, 0px) + 60px))',
           bottom: isMobile 
-            ? 'max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px))'
-            : 'max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px))',
+            ? 'max(140px, calc(env(safe-area-inset-bottom, 0px) + 130px))'
+            : 'auto',
         }}
-        title="颜色图例"
       >
-        <Info size={isMobile ? 22 : 20} className="text-blue-600" />
-      </button>
-      
-      {/* 颜色图例面板 */}
-      {showLegend && (
-        <div 
-          className={`absolute z-30 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 ${
-            isMobile ? 'left-3 right-3 max-w-sm mx-auto' : 'left-4 w-64'
-          }`}
-          style={{
-            bottom: isMobile 
-              ? 'max(80px, calc(env(safe-area-inset-bottom, 0px) + 70px))'
-              : 'max(80px, calc(env(safe-area-inset-bottom, 0px) + 70px))',
-          }}
-        >
-          {/* 标题栏 */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <span className={`font-bold text-gray-800 ${isMobile ? 'text-base' : 'text-sm'}`}>
-              颜色图例
-            </span>
-            <button
-              onClick={() => setShowLegend(false)}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X size={18} className="text-gray-500" />
-            </button>
-          </div>
-          
-          {/* 图例列表 */}
-          <div className="p-3 space-y-2.5">
-            {COLOR_LEGEND.map((item, index) => (
-              <div key={index} className="flex items-center gap-3">
-                {/* 圆形颜色标识 */}
-                <div 
-                  className="w-5 h-5 rounded-full flex-shrink-0 shadow-sm border border-white/50"
-                  style={{ backgroundColor: item.color }}
-                />
-                {/* 文字说明 */}
-                <span className={`text-gray-700 ${isMobile ? 'text-sm' : 'text-xs'}`}>
-                  {item.label}
-                </span>
-              </div>
-            ))}
-          </div>
+        {/* 图例列表 - 紧凑布局 */}
+        <div className={`${
+          isMobile ? 'px-2.5 py-2 space-y-1.5' : 'px-3 py-2.5 space-y-1.5'
+        }`}>
+          {COLOR_LEGEND.map((item, index) => (
+            <div key={index} className="flex items-center gap-2">
+              {/* 圆形颜色标识 */}
+              <div 
+                className={`rounded-full flex-shrink-0 shadow-sm border border-white/60 ${
+                  isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'
+                }`}
+                style={{ backgroundColor: item.color }}
+              />
+              {/* 文字说明 */}
+              <span className={`text-gray-600 whitespace-nowrap ${
+                isMobile ? 'text-[10px]' : 'text-xs'
+              }`}>
+                {item.label}
+              </span>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 };
