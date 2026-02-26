@@ -6,6 +6,7 @@ import viteCompression from 'vite-plugin-compression';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
+      base: '/manreyzd2.0/', // GitHub Pages 子路径
       server: {
         port: 3000,
         host: '0.0.0.0',
