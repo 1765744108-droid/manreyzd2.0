@@ -5,8 +5,10 @@ import viteCompression from 'vite-plugin-compression';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    // Vercel 部署使用根路径，GitHub Pages 使用子路径
+    const isVercel = process.env.VERCEL === '1';
     return {
-      base: '/manreyzd2.0/', // GitHub Pages 子路径
+      base: isVercel ? '/' : '/manreyzd2.0/',
       server: {
         port: 3000,
         host: '0.0.0.0',
