@@ -2,55 +2,19 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <!-- iOS 安全区域和PWA支持 -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="慢热远征队空间方案对比器：浏览、比较并交互查看 16 组空间模型。" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" content="#f5f5f5" />
-    <!-- 禁用电话号码自动检测 -->
+    <meta name="theme-color" content="#f4f3ee" />
     <meta name="format-detection" content="telephone=no" />
-    <title>慢热 远征队模型</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      /* 移动端基础优化 */
-      html, body {
-        overscroll-behavior: none;
-        touch-action: manipulation;
-        user-select: none;
-        -webkit-user-select: none;
-        -webkit-tap-highlight-color: transparent;
-        -webkit-touch-callout: none;
-      }
-      
-      /* 防止iOS下拉刷新 */
-      body {
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-      }
-    </style>
-
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "@react-three/fiber": "https://aistudiocdn.com/@react-three/fiber@^9.4.2",
-    "three": "https://aistudiocdn.com/three@^0.181.2",
-    "@react-three/drei": "https://aistudiocdn.com/@react-three/drei@^10.7.7",
-    "@use-gesture/react": "https://aistudiocdn.com/@use-gesture/react@^10.3.1"
-  }
-}
-</script>
-  <script type="module" crossorigin src="/manreyzd2.0/assets/index-DKekprX9.js"></script>
-  <link rel="modulepreload" crossorigin href="/manreyzd2.0/assets/threejs-CPbZZZUD.js">
-  <link rel="modulepreload" crossorigin href="/manreyzd2.0/assets/icons-DBuYh4wx.js">
-  <link rel="modulepreload" crossorigin href="/manreyzd2.0/assets/gesture-DqC7GDe4.js">
-  <link rel="stylesheet" crossorigin href="/manreyzd2.0/assets/index-6nDVcBLo.css">
+    <meta property="og:title" content="慢热远征队 · 空间方案对比器" />
+    <meta property="og:description" content="交互查看现实层、锚定层与 16 组空间方案。" />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/manreyzd2.0/tuo-logo.svg" />
+    <title>慢热远征队 · 空间方案对比器</title>
+  <script type="module" crossorigin src="/manreyzd2.0/assets/index-CFk8dpGS.js"></script>
+  <link rel="modulepreload" crossorigin href="/manreyzd2.0/assets/threejs-B1F-gZce.js">
+  <link rel="stylesheet" crossorigin href="/manreyzd2.0/assets/index-BvTSCeLl.css">
 </head>
   <body>
     <div id="root"></div>
