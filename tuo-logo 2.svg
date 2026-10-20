@@ -1,0 +1,28 @@
+<svg width="200" height="360" viewBox="0 0 200 360" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background is transparent by default -->
+  
+  <!-- Main blue shape -->
+  <path d="M150,50 L180,50 L180,120 C180,140 160,160 140,160 C120,160 100,140 100,120 L100,50 Z" fill="#2563EB" opacity="0.8"/>
+  
+  <!-- Face features -->
+  <circle cx="125" cy="100" r="15" fill="white"/>
+  <path d="M120,95 L130,105 M130,95 L120,105" stroke="#2563EB" stroke-width="2" stroke-linecap="round"/>
+  <ellipse cx="170" cy="140" rx="15" ry="25" fill="white"/>
+  
+  <!-- Lower part -->
+  <path d="M100,180 L120,180 L120,200 C120,210 130,220 140,220 C150,220 160,210 160,200 L160,180 L180,180" stroke="#2563EB" stroke-width="8" fill="none"/>
+  
+  <!-- Eye shape -->
+  <ellipse cx="120" cy="220" rx="25" ry="35" fill="#2563EB"/>
+  <circle cx="120" cy="220" r="10" fill="white"/>
+  <circle cx="120" cy="220" r="5" fill="#2563EB"/>
+  
+  <!-- Base -->
+  <ellipse cx="140" cy="270" rx="40" ry="10" fill="#2563EB"/>
+  
+  <!-- Text "TUO" -->
+  <text x="100" y="320" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="#2563EB" text-anchor="middle">TUO</text>
+  
+  <!-- Text "SLOW FEVER" -->
+  <text x="100" y="350" font-family="Arial, sans-serif" font-size="16" fill="#2563EB" text-anchor="middle">SLOW FEVER</text>
+</svg>
