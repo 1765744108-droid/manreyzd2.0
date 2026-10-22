@@ -1,0 +1,129 @@
+{
+  "unit": "metres",
+  "sources": [
+    {
+      "folder": "远征队 一案上_GLTF",
+      "file": "实体  143 (6).glb",
+      "sha256": "cf804cae44642b5203062a16eb7633b38f27911af1d1f823154187902e93f058",
+      "triangles": 720
+    },
+    {
+      "folder": "远征队 一案上_GLTF",
+      "file": "实体  67 (14).glb",
+      "sha256": "dacb3d5972feb53cd0ee353fca65ff0b6276a7652259d814207b55046fdd739a",
+      "triangles": 1520
+    },
+    {
+      "folder": "远征队 一案上_GLTF",
+      "file": "实体  143 (7).glb",
+      "sha256": "936d13ae3eb0b1a4ae23e0a7a78f7ea20825b5aa89c9fcb02aba60cd615d6c60",
+      "triangles": 720
+    },
+    {
+      "folder": "远征队 一案上_GLTF",
+      "file": "实体  67 (15).glb",
+      "sha256": "9333426369c1757309189976a1fead30c222061d568b1c6de488eaedc633394b",
+      "triangles": 1520
+    },
+    {
+      "folder": "远征队 一案上_GLTF",
+      "file": "圆形图案 03.glb",
+      "sha256": "803a98a64cc7d77b66d982ed56c71960d73af3e15f3c9d5e3e944e836246fcc5",
+      "triangles": 2568
+    },
+    {
+      "folder": "existing-approved-complete-state",
+      "file": "original-parts.glb",
+      "sha256": "bcac865e9cc69c603c0394ae582fef24b1fe53a926db22bc448296842d102c98",
+      "triangles": 6428
+    },
+    {
+      "folder": "existing-approved-complete-state",
+      "file": "original-stair-parts.glb",
+      "sha256": "4df89e91ec855fcf3ebb09a5b426661f79b9c941dbec8d99f33dd400f48d6277",
+      "triangles": 10120
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (8).glb",
+      "sha256": "341546945b4e8f2ed31e73e3d4c227ca1e7255d5fb67863c878dc77b9c461fef",
+      "triangles": 1520
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (9).glb",
+      "sha256": "149d3b08a0c001f221e0f9dc49ee58196eb0d92dae4d8f6217848d50d0663d06",
+      "triangles": 1518
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (10).glb",
+      "sha256": "f1d780736403f28c8acaa49265ff278742f80e5dd1f7f1f53b25499f477c458e",
+      "triangles": 1518
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (11).glb",
+      "sha256": "b91a02bd4bee1c11879c0ab16e47dbce369cee5f55771aa227625385470a56e0",
+      "triangles": 1520
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (12).glb",
+      "sha256": "80158e675ac26f73a2e664a969b02563892b2bf3176399e0ee7e931d2bfbd4af",
+      "triangles": 1520
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (13).glb",
+      "sha256": "bfa7dd7560bd0c6b74877273a8dc2ef4289bce7ee3a3910bb0e4994fce31be1a",
+      "triangles": 1520
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (14).glb",
+      "sha256": "65112405dbb474e6b58ab5fd9c8f1d5a5a163ac509fc47e883a87248f7f61e3a",
+      "triangles": 1520
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (15).glb",
+      "sha256": "854b2941c9371c15d88950a22ccc3af681663c99e203f1fda0741dc1645d06c2",
+      "triangles": 1520
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (16).glb",
+      "sha256": "d7fbe31e5ebc1899c1c9a25f2c334870bdd10b76baead37daac53b3b01a11e6a",
+      "triangles": 1520
+    },
+    {
+      "folder": "完整体状态_GLTF",
+      "file": "实体  67 (17).glb",
+      "sha256": "b05f28beccdff4f822addbf1015d8ac2b69c9590b66728a5bd617ba699552864",
+      "triangles": 1518
+    }
+  ],
+  "upper": {
+    "floorPitch": 10,
+    "floorY": 0.2,
+    "doorHeight": 3,
+    "personHeight": 1.76
+  },
+  "lower": {
+    "floorPitch": 5.05,
+    "floorY": 0.2,
+    "blockCentre": [
+      25.5,
+      0,
+      0
+    ],
+    "towerCentre": [
+      -20,
+      0,
+      0
+    ],
+    "sourceTowerComponents": "unchanged approved complete shell",
+    "verticalOrigin": 4.102788925170898
+  }
+}
