@@ -1,0 +1,66 @@
+{
+  "file": "overview-v2.glb",
+  "sources": [
+    {
+      "file": "original-parts.glb",
+      "sha256": "bcac865e9cc69c603c0394ae582fef24b1fe53a926db22bc448296842d102c98",
+      "triangles": 6428
+    },
+    {
+      "file": "original-stair-parts.glb",
+      "sha256": "4df89e91ec855fcf3ebb09a5b426661f79b9c941dbec8d99f33dd400f48d6277",
+      "triangles": 10120
+    },
+    {
+      "file": "complete/实体  67 (8).glb",
+      "sha256": "341546945b4e8f2ed31e73e3d4c227ca1e7255d5fb67863c878dc77b9c461fef",
+      "triangles": 1520
+    },
+    {
+      "file": "complete/实体  67 (9).glb",
+      "sha256": "149d3b08a0c001f221e0f9dc49ee58196eb0d92dae4d8f6217848d50d0663d06",
+      "triangles": 1518
+    },
+    {
+      "file": "complete/实体  67 (10).glb",
+      "sha256": "f1d780736403f28c8acaa49265ff278742f80e5dd1f7f1f53b25499f477c458e",
+      "triangles": 1518
+    },
+    {
+      "file": "complete/实体  67 (11).glb",
+      "sha256": "b91a02bd4bee1c11879c0ab16e47dbce369cee5f55771aa227625385470a56e0",
+      "triangles": 1520
+    },
+    {
+      "file": "complete/实体  67 (12).glb",
+      "sha256": "80158e675ac26f73a2e664a969b02563892b2bf3176399e0ee7e931d2bfbd4af",
+      "triangles": 1520
+    },
+    {
+      "file": "complete/实体  67 (13).glb",
+      "sha256": "bfa7dd7560bd0c6b74877273a8dc2ef4289bce7ee3a3910bb0e4994fce31be1a",
+      "triangles": 1520
+    },
+    {
+      "file": "complete/实体  67 (14).glb",
+      "sha256": "65112405dbb474e6b58ab5fd9c8f1d5a5a163ac509fc47e883a87248f7f61e3a",
+      "triangles": 1520
+    },
+    {
+      "file": "complete/实体  67 (15).glb",
+      "sha256": "854b2941c9371c15d88950a22ccc3af681663c99e203f1fda0741dc1645d06c2",
+      "triangles": 1520
+    },
+    {
+      "file": "complete/实体  67 (16).glb",
+      "sha256": "d7fbe31e5ebc1899c1c9a25f2c334870bdd10b76baead37daac53b3b01a11e6a",
+      "triangles": 1520
+    },
+    {
+      "file": "complete/实体  67 (17).glb",
+      "sha256": "b05f28beccdff4f822addbf1015d8ac2b69c9590b66728a5bd617ba699552864",
+      "triangles": 1518
+    }
+  ],
+  "sha256": "36803ac5fcf1089ad23143f7589c0740dc40e4384512371c1ebaba3c1807d461"
+}
