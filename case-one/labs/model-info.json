@@ -124,6 +124,56 @@
       0
     ],
     "sourceTowerComponents": "unchanged approved complete shell",
-    "verticalOrigin": 4.102788925170898
+    "verticalOrigin": 4.102788925170898,
+    "sealSites": {
+      "1-1": {
+        "point": [
+          18.020830631256104,
+          2.7000012397766113,
+          7.4475555419921875
+        ],
+        "normal": [
+          0,
+          0,
+          -1
+        ],
+        "min": [
+          15.570834159851074,
+          0.19999980926513672,
+          7.4475555419921875
+        ],
+        "max": [
+          20.470827102661133,
+          5.200002670288086,
+          7.4475555419921875
+        ],
+        "triangles": 2,
+        "source": "original inward-facing wall centre; window position specified by the setting"
+      },
+      "2-5": {
+        "point": [
+          23.02082633972168,
+          7.749701023101807,
+          -7.4524431228637695
+        ],
+        "normal": [
+          0,
+          0,
+          1
+        ],
+        "min": [
+          20.570829391479492,
+          5.249701499938965,
+          -7.4524431228637695
+        ],
+        "max": [
+          25.470823287963867,
+          10.249700546264648,
+          -7.4524431228637695
+        ],
+        "triangles": 2,
+        "source": "original inward-facing wall centre; window position specified by the setting"
+      }
+    }
   }
 }
