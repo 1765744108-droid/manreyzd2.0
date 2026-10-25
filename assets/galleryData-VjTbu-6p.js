@@ -1,0 +1,1 @@
+import{e as s}from"./index-CxjVqguc.js";const l=["第一组","第二组","第三组","第四组","第五组","第六组","第七组","第八组","第九组","第十组","第十一组","第十二组","第十三组","第十四组","第十五组","第十六组"],a=l.map((r,t)=>({id:`group-${t+1}`,name:r,modelUrl:s(`/gallery/${r}.glb`),thumbnailUrl:s(`/thumbnails/case-three-v2/${r}.jpg`),description:"空间状态与门体关系方案",tags:["现实层","锚定层","空间组合"]}));export{a as G};

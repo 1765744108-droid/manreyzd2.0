@@ -1,0 +1,30 @@
+{
+  "source": "gallery/第一组.glb",
+  "sha256": "259c3391966640536cd5b5af07cb1b478984cfc87b04c48c82300230ee0cd35e",
+  "body": "original-architecture",
+  "bodyScale": 1000,
+  "bodyOffset": [
+    0,
+    7.525134831666946,
+    0.1000314950942993
+  ],
+  "door": "door-1-2-leaf",
+  "doorVisibleByDefault": false,
+  "doorNominalSize": [
+    0.050008296966552734,
+    5,
+    5
+  ],
+  "doorHinge": [
+    2.5,
+    0,
+    0
+  ],
+  "seal": [
+    2.5,
+    2.5,
+    2.5
+  ],
+  "doorAdjustment": "Derived door slab width fitted from 4.9 to PDF 5m; originals unchanged.",
+  "semanticGeometry": "25 non-overlapping room/corridor regions, 5m storeys; original filenames are not PDF figure numbers."
+}
