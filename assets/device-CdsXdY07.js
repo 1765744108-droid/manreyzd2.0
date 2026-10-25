@@ -1,0 +1,1 @@
+const o=()=>{if(typeof window>"u")return"desktop";const t=window.innerWidth,n=window.innerHeight,e=Math.min(t,n),i=navigator.maxTouchPoints>0||"ontouchstart"in window;return e<600?"phone":i||t<1024?"tablet":"desktop"},r=t=>{if(typeof window>"u")return 1;const n=Math.max(1,window.devicePixelRatio||1);return Math.min(n,t==="phone"?1.35:t==="tablet"?1.7:2)};export{r as a,o as g};

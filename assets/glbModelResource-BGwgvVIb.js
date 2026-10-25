@@ -1,0 +1,1 @@
+import{G as n}from"./threejs-JIwwenHH.js";import{c as i,f as w}from"./modelAsset-DW5csCDy.js";function h(r,t,c={}){return i(async o=>{const a=await w(r,{...c,onAttempt:o}),{scene:e}=await new n().parseAsync(a,"").catch(s=>{throw new Error("模型数据暂时无法读取，请重新加载",{cause:s})});if(!e.getObjectByName(t))throw new Error("下载的模型结构与当前案件不符，请重新加载");return e})}export{h as c};
