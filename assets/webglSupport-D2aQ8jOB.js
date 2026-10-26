@@ -1,0 +1,1 @@
+function n(t=()=>document.createElement("canvas")){let e;try{e=t().getContext("webgl2",{antialias:!1})}catch{return!1}if(!e)return!1;try{e.getExtension("WEBGL_lose_context")?.loseContext()}catch{}return!0}export{n as c};
